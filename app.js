@@ -245,7 +245,7 @@ async function selectConcept(id) {
     const { pct } = fmtFreq(c.freq);
 
     const crumbs = anc
-      .map((a) => `<span class="crumb" data-id="${esc(a.id)}">${esc(a.code)}</span>`)
+      .map((a) => `<span class="crumb" data-id="${esc(a.id)}" title="${esc(a.label)}">${esc(a.code)}</span>`)
       .join('<span class="crumb-sep">/</span>');
 
     const attrs = cols
