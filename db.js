@@ -144,6 +144,22 @@ export async function ancestors(table, lft, rgt) {
   );
 }
 
+// All DISTINCT immediate parents of a CODE. The source is a DAG flattened into a
+// tree, so the same code can appear under several parents (e.g. adicap) — list
+// them all. The parent is the node whose path is this node's path minus its last
+// segment. Roots (depth 0) have no parent.
+export async function parents(table, code) {
+  assertTable(table);
+  return rows(
+    `SELECT DISTINCT p.id, p.code, p.label, p.depth, p.path
+     FROM ${table} c
+     JOIN ${table} p ON p.path = regexp_replace(c.path, '/[^/]*$', '')
+     WHERE c.code = ? AND c.depth > 0
+     ORDER BY p.depth, p.label`,
+    [code],
+  );
+}
+
 // Column names of a terminology table, in declared order (drives the generic
 // Concept attribute list). Excludes the common columns the shared UI renders.
 const COMMON = new Set(["id", "code", "label", "depth", "lft", "rgt", "path", "keywords", "freq"]);

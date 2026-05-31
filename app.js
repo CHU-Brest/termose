@@ -242,11 +242,22 @@ async function selectConcept(id) {
     if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
+    const par = await db.parents(state.term, c.code);
     const { pct } = fmtFreq(c.freq);
 
     const crumbs = anc
       .map((a) => `<span class="crumb" data-id="${esc(a.id)}" title="${esc(a.label)}">${esc(a.code)}</span>`)
       .join('<span class="crumb-sep">/</span>');
+
+    // Concepts parents — a code can have several parents (DAG flattened to a tree).
+    const parentsHtml = par.length
+      ? `<div class="section"><div class="section-h">Concepts parents <span class="cnt">${par.length}</span></div>
+           <div class="rel-list">${par
+             .map((pp) => `<div class="rel parent" data-id="${esc(pp.id)}" title="${esc(pp.label)}">
+               <span class="badge ${badgeClass(pp)}">${esc(pp.code)}</span>
+               <span class="rel-label">${esc(pp.label)}</span></div>`)
+             .join("")}</div></div>`
+      : "";
 
     const attrs = cols
       .map((col) => `<div class="attr"><div class="ak">${esc(col)}</div>${attrValue(c[col])}</div>`)
@@ -263,11 +274,14 @@ async function selectConcept(id) {
       <div class="section"><div class="section-h">Position (nested set)</div><div class="facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>
+      ${parentsHtml}
       <div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>
     </div>`;
 
     detail.querySelectorAll(".crumb").forEach((cr) =>
       cr.addEventListener("click", () => selectConcept(cr.dataset.id)));
+    detail.querySelectorAll(".rel[data-id]").forEach((r) =>
+      r.addEventListener("click", () => selectConcept(r.dataset.id)));
   } catch (e) {
     console.error(e);
     detail.innerHTML = `<div class="detail-empty"><p>Erreur : ${esc(e.message)}</p></div>`;
