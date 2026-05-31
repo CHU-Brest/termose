@@ -152,6 +152,39 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .icon-btn svg { width: 17px; height: 17px; }
 
+/* ---- cart ---- */
+.cart-wrap { position: relative; }
+.cart-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px;
+  padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; line-height: 1;
+  display: grid; place-items: center; box-shadow: 0 0 0 2px var(--header);
+}
+.cart-badge[hidden] { display: none; }
+.cart-menu {
+  position: absolute; top: 52px; right: 0; width: 330px; max-height: 62vh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 12px; z-index: 50;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.cart-menu[hidden] { display: none; }
+.cart-head { font-size: 11.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-2); display: flex; align-items: center; gap: 7px; }
+.cart-head .cnt { font-family: var(--font-mono); color: var(--text-3); }
+.cart-items { display: flex; flex-direction: column; gap: 2px; max-height: 38vh; overflow: auto; }
+.cart-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+.cart-item:hover { background: var(--hover); }
+.cart-item .ci-label { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cart-item .ci-rm { flex: 0 0 auto; border: 0; background: transparent; color: var(--text-3); cursor: pointer; border-radius: 5px; width: 20px; height: 20px; display: grid; place-items: center; font-size: 15px; line-height: 1; }
+.cart-item .ci-rm:hover { background: var(--border); color: var(--text); }
+.cart-empty { font-size: 12.5px; color: var(--text-3); font-style: italic; padding: 6px 2px; }
+.cart-actions { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border); padding-top: 10px; }
+.cart-actions .btn { border: 1px solid var(--border); }
+.cart-actions .cart-clear { margin-left: auto; color: #c0392b; }
+html[data-theme="dark"] .cart-actions .cart-clear { color: #f1948a; }
+.d-head .spacer { flex: 1; }
+.btn.cart-add { border: 1px solid var(--border); }
+.btn.cart-add.in-cart { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+
 /* ---- search bar row (full width, under header) ---- */
 .searchbar-row {
   flex: 0 0 auto;
@@ -466,6 +499,22 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
     </div>
 
     <span class="spacer"></span>
+
+    <div class="cart-wrap">
+      <button class="icon-btn" id="cartBtn" title="Panier" aria-label="Panier">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 9.4a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L5 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+        <span class="cart-badge" id="cartBadge" hidden>0</span>
+      </button>
+      <div class="cart-menu" id="cartMenu" hidden>
+        <div class="cart-head">Panier <span id="cartCount" class="cnt"></span></div>
+        <div class="cart-items" id="cartItems"></div>
+        <div class="cart-actions">
+          <button class="btn" id="cartCopyList">Copier la liste</button>
+          <button class="btn" id="cartCopySql">Copier SQL</button>
+          <button class="btn cart-clear" id="cartClear">Vider</button>
+        </div>
+      </div>
+    </div>
 
     <button class="icon-btn" id="themeBtn" title="Basculer clair / sombre" aria-label="Basculer le thème">
       <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>

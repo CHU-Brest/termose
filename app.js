@@ -19,6 +19,7 @@ const state = {
   terms: [], // [{table_name, version, source_file}]
   selected: null, // selected id
   tab: "tree", // active left-pane tab: "tree" | "results"
+  current: null, // { code, label } of the concept shown in the panel (for the cart button)
 };
 
 // ----------------------------------------------------------- keyboard shortcuts
@@ -89,6 +90,9 @@ function renderTermSelect() {
 async function switchTerm(table) {
   state.term = table;
   state.selected = null;
+  state.current = null;
+  $("#cartMenu").hidden = true;
+  refreshCart(); // badge/menu follow the active terminology
   clearResults();
   clearDetail();
   $("#search").value = "";
@@ -127,6 +131,88 @@ function setTab(tab) {
 function initTabs() {
   $("#tabTreeBtn").addEventListener("click", () => setTab("tree"));
   $("#tabResultsBtn").addEventListener("click", () => setTab("results"));
+}
+
+// ----------------------------------------------------------------- cart
+// Per-terminology basket of concept codes, persisted in localStorage.
+const CART_KEY = "termose-cart";
+let cart = (() => { try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; } })();
+const saveCart = () => localStorage.setItem(CART_KEY, JSON.stringify(cart));
+const cartCodes = () => Object.keys(cart[state.term] || {});
+const inCart = (code) => !!(cart[state.term] && Object.prototype.hasOwnProperty.call(cart[state.term], code));
+
+function addToCart(code, label) {
+  (cart[state.term] ||= {})[code] = label;
+  saveCart();
+  refreshCart();
+}
+function removeFromCart(code) {
+  if (cart[state.term]) { delete cart[state.term][code]; saveCart(); refreshCart(); }
+}
+function clearCart() {
+  cart[state.term] = {};
+  saveCart();
+  refreshCart();
+}
+
+function refreshCart() {
+  const codes = cartCodes();
+  const badge = $("#cartBadge");
+  badge.textContent = String(codes.length);
+  badge.hidden = codes.length === 0;
+  if (!$("#cartMenu").hidden) renderCartMenu();
+  // keep the concept-panel button label in sync if a concept is shown
+  const btn = $("#conceptCartBtn");
+  if (btn && state.current) {
+    const on = inCart(state.current.code);
+    btn.classList.toggle("in-cart", on);
+    btn.textContent = on ? "✓ Dans le panier" : "+ Panier";
+  }
+}
+
+function renderCartMenu() {
+  const map = cart[state.term] || {};
+  const codes = Object.keys(map);
+  $("#cartCount").textContent = `(${codes.length}) · ${(state.term || "").toUpperCase()}`;
+  const box = $("#cartItems");
+  box.innerHTML = "";
+  if (!codes.length) {
+    box.innerHTML = `<div class="cart-empty">Panier vide. Ajoutez un concept depuis le panneau de droite.</div>`;
+    return;
+  }
+  codes.forEach((code) => {
+    const item = el("div", "cart-item");
+    item.innerHTML =
+      `<span class="badge category">${esc(code)}</span>` +
+      `<span class="ci-label" title="${esc(map[code])}">${esc(map[code])}</span>` +
+      `<button class="ci-rm" title="Retirer" aria-label="Retirer">×</button>`;
+    item.querySelector(".ci-rm").addEventListener("click", () => removeFromCart(code));
+    box.appendChild(item);
+  });
+}
+
+async function copyText(text, btn) {
+  const original = btn.textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copié ✓"; }
+  catch { btn.textContent = "Échec copie"; }
+  setTimeout(() => { btn.textContent = original; }, 1200);
+}
+
+function initCart() {
+  const menu = $("#cartMenu");
+  $("#cartBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) renderCartMenu();
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.hidden && !e.target.closest(".cart-wrap")) menu.hidden = true;
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") menu.hidden = true; });
+  $("#cartCopyList").addEventListener("click", (e) => copyText(cartCodes().join("\n"), e.currentTarget));
+  $("#cartCopySql").addEventListener("click", (e) =>
+    copyText("code IN (" + cartCodes().map((c) => `'${c.replace(/'/g, "''")}'`).join(", ") + ")", e.currentTarget));
+  $("#cartClear").addEventListener("click", () => clearCart());
 }
 function clearDetail() {
   $("#detail").innerHTML =
@@ -328,6 +414,7 @@ async function selectConcept(id) {
   try {
     const c = await db.concept(state.term, id);
     if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
+    state.current = { code: c.code, label: c.label }; // for the cart button
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
     const par = await db.parents(state.term, c.code);
@@ -355,7 +442,11 @@ async function selectConcept(id) {
       .join("");
 
     detail.innerHTML = `<div class="detail-inner">
-      <div class="d-head"><span class="d-code">${esc(c.code)}</span></div>
+      <div class="d-head">
+        <span class="d-code">${esc(c.code)}</span>
+        <span class="spacer"></span>
+        <button class="btn cart-add${inCart(c.code) ? " in-cart" : ""}" id="conceptCartBtn">${inCart(c.code) ? "✓ Dans le panier" : "+ Panier"}</button>
+      </div>
       <h2 class="d-label">${esc(c.label)}</h2>
       <div class="freq-mini">
         <span class="fm-bar"><i style="width:${pct}%"></i></span>
@@ -373,6 +464,10 @@ async function selectConcept(id) {
       cr.addEventListener("click", () => selectConcept(cr.dataset.id)));
     detail.querySelectorAll(".rel[data-id]").forEach((r) =>
       r.addEventListener("click", () => selectConcept(r.dataset.id)));
+    $("#conceptCartBtn").addEventListener("click", () => {
+      if (inCart(c.code)) removeFromCart(c.code);
+      else addToCart(c.code, c.label);
+    });
   } catch (e) {
     console.error(e);
     detail.innerHTML = `<div class="detail-empty"><p>Erreur : ${esc(e.message)}</p></div>`;
@@ -385,6 +480,7 @@ async function boot() {
   initSplitters();
   initShortcuts();
   initTabs();
+  initCart();
   setTab("tree");
   initSearch();
   $("#collapseBtn").addEventListener("click", () => {
@@ -398,6 +494,7 @@ async function boot() {
     // Prefer CIM-10 as the default (the headline terminology); fall back to first.
     state.term = (state.terms.find((t) => t.table_name === "cim10") || state.terms[0])?.table_name || null;
     renderTermSelect();
+    refreshCart();
     clearResults();
     clearDetail();
     await loadTree();
