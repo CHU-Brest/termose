@@ -35,11 +35,18 @@ async function bootConnection() {
   return conn;
 }
 
-// Convert a row to a plain object, coercing BigInt (duckdb returns INTEGER/BIGINT
-// as BigInt) to Number — all our integer columns are small and safe.
+// Convert a row to a plain object:
+//  - BigInt (duckdb returns INTEGER/BIGINT as BigInt) -> Number (our ints are small)
+//  - Arrow Vector (LIST columns like synonymes/exclusion_codes) -> plain JS array
 function jsonRow(r) {
   const o = r.toJSON();
-  for (const k in o) if (typeof o[k] === "bigint") o[k] = Number(o[k]);
+  for (const k in o) {
+    const v = o[k];
+    if (typeof v === "bigint") o[k] = Number(v);
+    else if (v && typeof v === "object" && typeof v.toArray === "function") {
+      o[k] = Array.from(v.toArray());
+    }
+  }
   return o;
 }
 
