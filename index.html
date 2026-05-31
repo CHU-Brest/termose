@@ -185,15 +185,15 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .cart-actions .cart-clear { margin-left: auto; color: #c0392b; }
 html[data-theme="dark"] .cart-actions .cart-clear { color: #f1948a; }
 .d-head .spacer { flex: 1; }
-/* prominent primary CTA: add to cart */
+/* not in cart = outline (call to action to add) */
 .btn.cart-add {
   font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 9px;
-  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+  background: transparent; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
 }
-.btn.cart-add:hover { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; color: var(--accent-ink); }
-/* in-cart = toggle-off look (muted outline) */
-.btn.cart-add.in-cart { background: transparent; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-.btn.cart-add.in-cart:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.btn.cart-add:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); border-color: var(--accent); }
+/* in cart = filled accent */
+.btn.cart-add.in-cart { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.cart-add.in-cart:hover { background: color-mix(in srgb, var(--accent) 88%, #000); color: var(--accent-ink); border-color: transparent; }
 
 /* ---- search bar row (full width, under header) ---- */
 .searchbar-row {
