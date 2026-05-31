@@ -1,5 +1,8 @@
 // app.js — view layer. No SQL (all data comes from db.js).
-import * as db from "./db.js";
+// Propagate our own cache-busting ?v= to db.js so app.js and db.js always load
+// as a matched, fresh pair (prevents stale-cache mix breaking boot after updates).
+const _v = new URL(import.meta.url).searchParams.get("v");
+const db = await import("./db.js" + (_v ? `?v=${_v}` : ""));
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, html) => {

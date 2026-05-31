@@ -523,6 +523,7 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
   </div>
 </div>
 
-<script type="module" src="app.js"></script>
+<!-- Cache-bust app.js (and, via it, db.js) so updates never load a stale mix. -->
+<script type="module">import("./app.js?v=" + Date.now());</script>
 </body>
 </html>
