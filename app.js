@@ -168,8 +168,6 @@ function resultItem(n) {
     `<div class="r-top">` +
       `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
       `<span class="r-label">${esc(n.label)}</span>` +
-    `</div>` +
-    `<div class="r-foot">` +
       `<span class="freq"><span class="freq-bar"><i style="width:${pct}%"></i></span>` +
       `<span class="freq-val">${pct}%</span></span>` +
     `</div>`;

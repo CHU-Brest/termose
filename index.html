@@ -265,7 +265,7 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .result:hover { background: var(--hover); }
 .result.active { background: var(--selected); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .result .r-top { display: flex; align-items: center; gap: 8px; }
-.result .r-label { font-size: 13.5px; color: var(--text); line-height: 1.3; }
+.result .r-label { font-size: 13.5px; color: var(--text); line-height: 1.3; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .result .r-path { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .result .r-syn { font-size: 11.5px; color: var(--text-2); font-style: italic; }
 .r-foot { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
