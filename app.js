@@ -69,18 +69,11 @@ function renderTermSelect() {
     sel.appendChild(o);
   });
   sel.onchange = () => switchTerm(sel.value);
-  renderMetaChip();
-}
-
-function renderMetaChip() {
-  const t = state.terms.find((x) => x.table_name === state.term);
-  $("#metaChip").innerHTML = t ? `<b>${esc(t.table_name.toUpperCase())}</b> · v.${esc(t.version)}` : "";
 }
 
 async function switchTerm(table) {
   state.term = table;
   state.selected = null;
-  renderMetaChip();
   clearResults();
   clearDetail();
   $("#search").value = "";

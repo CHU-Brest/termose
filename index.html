@@ -142,12 +142,6 @@ body {
 html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: var(--hover); }
 
 .topbar .spacer { flex: 1; }
-.topbar .meta-chip {
-  font-family: var(--font-mono); font-size: 12px; color: var(--text-2);
-  display: flex; align-items: center; gap: 7px; white-space: nowrap;
-}
-.topbar .meta-chip b { color: var(--text); font-weight: 600; }
-.topbar .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--border-strong); }
 
 .icon-btn {
   width: 45px; height: 45px; border-radius: 10px;
@@ -181,7 +175,6 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .select-shell select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .sel-chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text-2); pointer-events: none; }
 .header-select { flex: 0 0 auto; }
-.term-group { display: flex; align-items: center; gap: 11px; flex: 0 0 auto; padding: 4px 13px 4px 4px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
 .header-select .sel-ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--accent); pointer-events: none; }
 .header-select select {
   min-width: 118px; padding: 7px 34px 7px 33px;
@@ -474,15 +467,6 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 
     <span class="spacer"></span>
 
-    <div class="term-group">
-      <div class="select-shell header-select">
-        <svg class="sel-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>
-        <select id="termSelect" aria-label="Choix de la terminologie"></select>
-        <svg class="sel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-      </div>
-      <div class="meta-chip" id="metaChip"></div>
-    </div>
-
     <button class="icon-btn" id="themeBtn" title="Basculer clair / sombre" aria-label="Basculer le thème">
       <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
     </button>
@@ -490,6 +474,11 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 
   <!-- ===================== SEARCH BAR ===================== -->
   <div class="searchbar-row">
+    <div class="select-shell header-select">
+      <svg class="sel-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>
+      <select id="termSelect" aria-label="Choix de la terminologie"></select>
+      <svg class="sel-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
     <div class="search-box">
       <svg class="s-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
       <input id="search" type="text" placeholder="Rechercher un code, un libellé, un synonyme…" autocomplete="off" spellcheck="false" />
