@@ -339,7 +339,10 @@ async function selectConcept(id) {
              .join("")}</div></div>`
       : "";
 
-    const attrs = cols
+    // Only show attributes that have a value (skip null / "" / empty arrays).
+    const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
+    const filledCols = cols.filter((col) => !isEmpty(c[col]));
+    const attrs = filledCols
       .map((col) => `<div class="attr"><div class="ak">${esc(col)}</div>${attrValue(c[col])}</div>`)
       .join("");
 
@@ -355,7 +358,7 @@ async function selectConcept(id) {
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>
       ${parentsHtml}
-      <div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>
+      ${filledCols.length ? `<div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>` : ""}
     </div>`;
 
     detail.querySelectorAll(".crumb").forEach((cr) =>
