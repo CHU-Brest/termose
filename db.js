@@ -93,18 +93,36 @@ export async function children(table, path, depth) {
   );
 }
 
+// Normalize like the build did for `keywords`: lowercase + strip accents.
+const normQuery = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
 export async function search(table, query) {
   assertTable(table);
-  const q = (query || "").trim();
-  if (!q) return [];
+  const raw = (query || "").trim();
+  if (!raw) return [];
+  const words = normQuery(raw).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+
+  // Each query word must match a `keywords` token by PREFIX (so "grip" -> "grippe").
+  // `keywords` is space-joined normalized tokens: a word w matches if the string
+  // starts with "w" or contains " w". BM25 score (whole-word) is kept only to
+  // rank exact-term hits above prefix-only hits.
+  const conds = [];
+  const params = [];
+  for (const w of words) {
+    const e = w.replace(/[%_\\]/g, (c) => "\\" + c); // escape LIKE metachars
+    conds.push("(keywords LIKE ? ESCAPE '\\' OR keywords LIKE ? ESCAPE '\\')");
+    params.push(e + "%", "% " + e + "%");
+  }
+
   return rows(
     `SELECT id, code, label, depth, lft, rgt, path, freq,
             fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
      FROM ${table}
-     WHERE score IS NOT NULL
-     ORDER BY score DESC, freq DESC
+     WHERE ${conds.join(" AND ")}
+     ORDER BY score DESC NULLS LAST, freq DESC, length(label), code
      LIMIT 300`,
-    [q],
+    [raw, ...params],
   );
 }
 
