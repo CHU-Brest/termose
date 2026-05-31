@@ -13,7 +13,7 @@ visual design already exists in `design/` and is reused as-is.
 ## Decisions (from brainstorming)
 
 - **Data delivery:** ship the whole `database/termose.duckdb` (~7.5 MB) as a
-  static asset; `ATTACH` it read-only in DuckDB-WASM. (Tradeoff accepted: larger
+  static asset; open it read-only as the main catalog in DuckDB-WASM. (Tradeoff accepted: larger
   download + a storage-format-compatibility check vs. the simplest model.)
 - **Frequency:** read the real `freq` column from the DB. It is currently `0.0`
   for every row; the UI must degrade gracefully (0% / empty bars) and light up
@@ -59,10 +59,17 @@ termose.duckdb    ← the prebuilt DB (with FTS indexes), served as a static ass
 ```
 
 Boot sequence:
-1. Boot DuckDB-WASM, `LOAD fts` (autoload also acceptable).
-2. Fetch `termose.duckdb` into the WASM virtual FS; `ATTACH '...' AS termose (READ_ONLY)`.
-3. `SELECT * FROM termose.meta` → populate the terminology switch.
+1. Boot DuckDB-WASM.
+2. Fetch `termose.duckdb` into the WASM virtual FS; `db.open()` it **as the main
+   catalog, read-only** (NOT `ATTACH`). The persisted `match_bm25` macro calls
+   its sibling FTS helpers (`tokenize`/`stem`) unqualified, which only resolve
+   when `fts_main_<table>` lives in the main catalog; under an attached catalog
+   they fail. Then `LOAD fts`.
+3. `SELECT * FROM meta` → populate the terminology switch.
 4. Load roots of the default terminology into the tree.
+
+Note: duckdb-wasm returns INTEGER/BIGINT as JS `BigInt`; `db.js` coerces these
+to `Number` when mapping rows (all our integer columns are small and safe).
 
 ### `db.js` — data layer (no DOM)
 
@@ -122,8 +129,8 @@ Runtime query (read-only):
 
 ```sql
 SELECT id, code, label, depth, path, freq,
-       termose.fts_main_<table>.match_bm25(id, ?, conjunctive := 1) AS score
-FROM termose.<table>
+       fts_main_<table>.match_bm25(id, ?, conjunctive := 1) AS score
+FROM <table>
 WHERE score IS NOT NULL
 ORDER BY score DESC, freq DESC
 LIMIT 300;

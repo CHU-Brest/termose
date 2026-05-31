@@ -379,6 +379,21 @@ export { rows as _rows, assertTable as _assertTable }; // used by helpers in Tas
 
 Note: `1.29.0` is a starting pin. If Step 3 fails on a storage/index format error, bump to the DuckDB-WASM release matching DuckDB 1.5.x and re-test; that resolution IS the gate.
 
+> **RESOLVED DURING IMPLEMENTATION (read before coding Tasks 3-4):**
+> - Pinned **`@duckdb/duckdb-wasm@1.32.0`** — verified headless it reads the
+>   duckdb 1.5.3 storage + FTS index.
+> - **Do NOT `ATTACH`.** The persisted `match_bm25` macro calls sibling FTS
+>   helpers (`tokenize`/`stem`) unqualified, which fail under an attached
+>   catalog. Instead `await db.open({ path: DB_FILE, accessMode: duckdb.DuckDBAccessMode.READ_ONLY })`
+>   to open it as the **main** catalog, then `LOAD fts`. Drop the `termose.`
+>   prefix from every query (`FROM <table>`, `fts_main_<table>.match_bm25(...)`).
+> - **BigInt:** duckdb-wasm returns INTEGER/BIGINT as JS `BigInt`. The `rows()`
+>   helper coerces BigInt→Number per cell; `children()` uses `Number(depth) + 1`.
+> - **extraColumns:** filter `information_schema.columns` by `table_schema = 'main'`
+>   (not `table_catalog`).
+> The committed `db.js` reflects all of the above; the code blocks below show the
+> original ATTACH-based draft and are kept for narrative only.
+
 - [ ] **Step 2: Create `smoke.html`**
 
 ```html
