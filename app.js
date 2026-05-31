@@ -151,8 +151,7 @@ async function loadTree() {
 
 // =================================================================== RESULTS
 function fmtFreq(freq) {
-  const pct = Math.round((Number(freq) || 0) * 100);
-  return { pct, label: pct >= 60 ? "Très fréquent" : pct >= 30 ? "Fréquent" : pct >= 10 ? "Peu fréquent" : "Rare" };
+  return { pct: Math.round((Number(freq) || 0) * 100) };
 }
 
 function resultItem(n) {
@@ -237,7 +236,7 @@ async function selectConcept(id) {
     if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
-    const { pct, label } = fmtFreq(c.freq);
+    const { pct } = fmtFreq(c.freq);
 
     const crumbs = anc
       .map((a) => `<span class="crumb" data-id="${esc(a.id)}">${esc(a.code)}</span>`)
@@ -250,10 +249,11 @@ async function selectConcept(id) {
     detail.innerHTML = `<div class="detail-inner">
       <div class="d-head"><span class="d-code">${esc(c.code)}</span></div>
       <h2 class="d-label">${esc(c.label)}</h2>
-      <div class="freq-detail"><div class="fd-top">
-        <span class="fd-num">${pct}<span class="fd-unit"> %</span></span>
-        <span class="fd-tag ${pct >= 60 ? "vf" : pct >= 30 ? "f" : pct >= 10 ? "p" : "r"}">${esc(label)}</span>
-      </div><div class="fd-bar"><i style="width:${pct}%"></i></div></div>
+      <div class="freq-mini">
+        <span class="fm-val">${pct} %</span>
+        <span class="fm-bar"><i style="width:${pct}%"></i></span>
+        <span class="fm-cap">fréquence</span>
+      </div>
       ${anc.length ? `<div class="section"><div class="section-h">Hiérarchie</div><div class="d-breadcrumb">${crumbs}</div></div>` : ""}
       <div class="section"><div class="section-h">Position (nested set)</div><div class="facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}

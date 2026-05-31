@@ -289,6 +289,13 @@ html[data-theme="dark"] .freq-detail { background: var(--hover); }
 .fd-bar { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-top: 12px; }
 .fd-bar i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
 
+/* detail : discreet frequency line (no card, no tag) */
+.freq-mini { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+.freq-mini .fm-val { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); min-width: 34px; }
+.freq-mini .fm-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.freq-mini .fm-bar i { display: block; height: 100%; background: var(--accent); }
+.freq-mini .fm-cap { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); }
+
 mark { background: var(--mark); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; font-weight: 600; }
 
 /* type badge */
