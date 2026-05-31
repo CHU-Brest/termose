@@ -20,7 +20,10 @@ async function bootConnection() {
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   URL.revokeObjectURL(workerUrl);
 
-  const res = await fetch(DB_URL);
+  // `no-cache` = always revalidate with the server (conditional GET): a 304 when
+  // the DB is unchanged (no re-download of the ~14 MB file), a fresh download when
+  // it changed. Prevents a stale cached DB from mismatching db.js's schema.
+  const res = await fetch(DB_URL, { cache: "no-cache" });
   if (!res.ok) throw new Error(`Téléchargement de ${DB_URL} échoué (HTTP ${res.status})`);
   const buf = new Uint8Array(await res.arrayBuffer());
   await db.registerFileBuffer(DB_FILE, buf);
