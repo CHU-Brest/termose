@@ -8,7 +8,7 @@ import duckdb
 import pytest
 
 DB = str(Path(__file__).resolve().parent.parent / "database" / "termose.duckdb")
-TABLES = ["cim10", "ccam", "adicap"]
+TABLES = ["cim10", "ccam", "adicap", "atc"]
 
 
 @pytest.fixture(scope="module")
@@ -19,12 +19,12 @@ def con():
     c.close()
 
 
-def test_meta_lists_three_terminologies(con):
+def test_meta_lists_all_terminologies(con):
     rows = con.execute(
         "SELECT table_name, version FROM meta ORDER BY table_name"
     ).fetchall()
     names = [r[0] for r in rows]
-    assert names == ["adicap", "ccam", "cim10"]
+    assert names == ["adicap", "atc", "ccam", "cim10"]
 
 
 @pytest.mark.parametrize("table", TABLES)
