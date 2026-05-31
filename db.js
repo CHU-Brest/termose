@@ -25,10 +25,22 @@ async function bootConnection() {
   const buf = new Uint8Array(await res.arrayBuffer());
   await db.registerFileBuffer(DB_FILE, buf);
 
+  // Open the prebuilt DB as the MAIN catalog (read-only) rather than ATTACHing
+  // it: the persisted match_bm25 macro calls its sibling FTS helpers (tokenize,
+  // stem) unqualified, which only resolve when fts_main_<table> lives in the
+  // main catalog. Under an attached catalog those calls fail.
+  await db.open({ path: DB_FILE, accessMode: duckdb.DuckDBAccessMode.READ_ONLY });
   const conn = await db.connect();
   await conn.query("LOAD fts");
-  await conn.query(`ATTACH '${DB_FILE}' AS termose (READ_ONLY)`);
   return conn;
+}
+
+// Convert a row to a plain object, coercing BigInt (duckdb returns INTEGER/BIGINT
+// as BigInt) to Number — all our integer columns are small and safe.
+function jsonRow(r) {
+  const o = r.toJSON();
+  for (const k in o) if (typeof o[k] === "bigint") o[k] = Number(o[k]);
+  return o;
 }
 
 // Run a query and return an array of plain JS objects.
@@ -36,7 +48,7 @@ async function rows(sql, params) {
   const stmt = await _conn.prepare(sql);
   const result = params && params.length ? await stmt.query(...params) : await stmt.query();
   await stmt.close();
-  return result.toArray().map((r) => r.toJSON());
+  return result.toArray().map(jsonRow);
 }
 
 export async function init() {
@@ -46,7 +58,7 @@ export async function init() {
 
 export async function listTerminologies() {
   const r = await rows(
-    "SELECT table_name, version, source_file FROM termose.meta ORDER BY table_name",
+    "SELECT table_name, version, source_file FROM meta ORDER BY table_name",
   );
   _tables = new Set(r.map((t) => t.table_name));
   return r;
@@ -61,7 +73,7 @@ export async function roots(table) {
   assertTable(table);
   return rows(
     `SELECT id, code, label, depth, lft, rgt, path, freq
-     FROM termose.${table} WHERE depth = 0 ORDER BY lft`,
+     FROM ${table} WHERE depth = 0 ORDER BY lft`,
   );
 }
 
@@ -69,8 +81,8 @@ export async function children(table, path, depth) {
   assertTable(table);
   return rows(
     `SELECT id, code, label, depth, lft, rgt, path, freq
-     FROM termose.${table} WHERE path LIKE ? AND depth = ? ORDER BY lft`,
-    [path + "/%", depth + 1],
+     FROM ${table} WHERE path LIKE ? AND depth = ? ORDER BY lft`,
+    [path + "/%", Number(depth) + 1],
   );
 }
 
@@ -80,8 +92,8 @@ export async function search(table, query) {
   if (!q) return [];
   return rows(
     `SELECT id, code, label, depth, lft, rgt, path, freq,
-            termose.fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
-     FROM termose.${table}
+            fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
+     FROM ${table}
      WHERE score IS NOT NULL
      ORDER BY score DESC, freq DESC
      LIMIT 300`,
@@ -92,7 +104,7 @@ export async function search(table, query) {
 // Full row (all columns) for the concept panel; keyed by the integer id. null if missing.
 export async function concept(table, id) {
   assertTable(table);
-  const r = await rows(`SELECT * FROM termose.${table} WHERE id = ?`, [id]);
+  const r = await rows(`SELECT * FROM ${table} WHERE id = ?`, [id]);
   return r[0] || null;
 }
 
@@ -101,7 +113,7 @@ export async function concept(table, id) {
 export async function ancestors(table, lft, rgt) {
   assertTable(table);
   return rows(
-    `SELECT id, code, label, depth, path FROM termose.${table}
+    `SELECT id, code, label, depth, path FROM ${table}
      WHERE lft < ? AND rgt > ? ORDER BY lft`,
     [lft, rgt],
   );
@@ -114,7 +126,7 @@ export async function extraColumns(table) {
   assertTable(table);
   const cols = await rows(
     `SELECT column_name FROM information_schema.columns
-     WHERE table_catalog = 'termose' AND table_name = ?
+     WHERE table_schema = 'main' AND table_name = ?
      ORDER BY ordinal_position`,
     [table],
   );
