@@ -111,6 +111,11 @@ function clearDetail() {
 const CHEVRON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
+// Colour the code badge by depth (generic across terminologies). For cim10 this
+// matches its type→colour mapping (chapter@0, block@1, category@2, subcategory@3).
+const BADGE_BY_DEPTH = ["chapter", "block", "category", "subcategory", "paragraph", "acte", "subchapter"];
+const badgeClass = (n) => n.type || BADGE_BY_DEPTH[Math.min(n.depth, BADGE_BY_DEPTH.length - 1)];
+
 function nodeRow(n) {
   const node = el("div", "node");
   node.dataset.id = n.id; // integer id is the unique identifier (code is not unique in adicap)
@@ -118,6 +123,7 @@ function nodeRow(n) {
   const row = el("div", "node-row" + (n.depth === 0 ? " is-chapter" : ""));
   row.innerHTML =
     `<span class="twisty${isLeaf ? " leaf" : ""}">${CHEVRON}</span>` +
+    `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
     `<span class="node-label">${esc(n.label)}</span>`;
   const kids = el("div", "kids");
   node.appendChild(row);
