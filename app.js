@@ -419,6 +419,7 @@ async function selectConcept(id) {
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
     const par = await db.parents(state.term, c.code);
+    const kids = await db.children(state.term, c.path, c.depth); // first-level children only
     const { pct } = fmtFreq(c.freq);
 
     const crumbs = anc
@@ -432,6 +433,16 @@ async function selectConcept(id) {
              .map((pp) => `<div class="rel parent" data-id="${esc(pp.id)}" title="${esc(pp.label)}">
                <span class="badge ${badgeClass(pp)}">${esc(pp.code)}</span>
                <span class="rel-label">${esc(pp.label)}</span></div>`)
+             .join("")}</div></div>`
+      : "";
+
+    // Concepts enfants — first-level children only (mirror of the parents section).
+    const childrenHtml = kids.length
+      ? `<div class="section"><div class="section-h">Concepts enfants <span class="cnt">${kids.length}</span></div>
+           <div class="rel-list">${kids
+             .map((k) => `<div class="rel" data-id="${esc(k.id)}" title="${esc(k.label)}">
+               <span class="badge ${badgeClass(k)}">${esc(k.code)}</span>
+               <span class="rel-label">${esc(k.label)}</span></div>`)
              .join("")}</div></div>`
       : "";
 
@@ -458,6 +469,7 @@ async function selectConcept(id) {
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>
       ${parentsHtml}
+      ${childrenHtml}
       ${filledCols.length ? `<div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>` : ""}
     </div>`;
 
