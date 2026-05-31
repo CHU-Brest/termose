@@ -19,8 +19,8 @@ visual design already exists in `design/` and is reused as-is.
   for every row; the UI must degrade gracefully (0% / empty bars) and light up
   automatically when `freq` is later populated. No fake/computed frequencies.
 - **Terminologies:** support all three generically. Common columns
-  (`code`, `label`, `depth`, `lft`, `rgt`, `path`, `keywords`, `freq`) drive the
-  shared UI; each terminology's *extra* columns render dynamically as attribute
+  (`id`, `code`, `label`, `depth`, `lft`, `rgt`, `path`, `keywords`, `freq`) drive
+  the shared UI; each terminology's *extra* columns render dynamically as attribute
   rows in the Concept panel. Adding a new parquet later needs zero UI code
   changes. The terminology switch is populated from the `meta` table.
 - **Search:** DuckDB Full-Text Search (BM25) over the `keywords` column, with the
@@ -39,10 +39,12 @@ visual design already exists in `design/` and is reused as-is.
 | `adicap`| 9 682  | + `dictionary_code`, `anatomy_code`, `anatomy_label` |
 | `meta`  | 3      | `table_name`, `source_file`, `version` |
 
-Every terminology table shares: `code`, `label`, `depth`, `lft`, `rgt`, `path`,
-`keywords`, `freq`. Hierarchy is encoded with the **nested-set model**
-(`lft`/`rgt`/`depth`) plus a materialized `path` (e.g. `00/01/01.01`). `keywords`
-is pre-normalized (lowercased, accent-stripped, word tokens).
+Every terminology table shares: `id` (surrogate integer PRIMARY KEY, the concept
+identifier — added at build time because `code` is not unique in adicap), `code`,
+`label`, `depth`, `lft`, `rgt`, `path`, `keywords`, `freq`. Hierarchy is encoded
+with the **nested-set model** (`lft`/`rgt`/`depth`) plus a materialized `path`
+(e.g. `00/01/01.01`). `keywords` is pre-normalized (lowercased, accent-stripped,
+word tokens).
 
 ## Architecture
 
@@ -97,24 +99,30 @@ freq bars, splitters, theme toggle). Three panels:
 
 ### Search (FTS / BM25)
 
+Each terminology table gets a surrogate integer primary key `id` at build time
+(`code` is NOT unique in adicap, so it cannot be the identifier). `id` is the
+universal concept identifier: FTS document id, concept lookup, tree/result
+selection, breadcrumb navigation. `code` is display-only; `path` is still used
+for hierarchy queries.
+
 Index is **prebuilt at DB-build time** and persisted in the file. Add to
 `database/build_db.py`, after each terminology table is created:
 
 ```sql
-PRAGMA create_fts_index('<table>', 'code', 'keywords',
+PRAGMA create_fts_index('<table>', 'id', 'keywords',
                         stemmer='french', stopwords='none', overwrite=1);
 ```
 
 This creates a persistent `fts_main_<table>` schema (index tables + `match_bm25`
-macro) stored inside `termose.duckdb`. `code` is the unique document id.
+macro) stored inside `termose.duckdb`. `id` is the unique document id.
 `strip_accents`/`lower` default on, consistent with the already-normalized
 `keywords`. `stemmer`/`stopwords` are tunable.
 
 Runtime query (read-only):
 
 ```sql
-SELECT code, label, depth, path, freq,
-       termose.fts_main_<table>.match_bm25(code, ?, conjunctive := 1) AS score
+SELECT id, code, label, depth, path, freq,
+       termose.fts_main_<table>.match_bm25(id, ?, conjunctive := 1) AS score
 FROM termose.<table>
 WHERE score IS NOT NULL
 ORDER BY score DESC, freq DESC

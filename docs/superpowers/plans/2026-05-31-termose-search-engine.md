@@ -50,9 +50,11 @@ dev = [
 Then run: `uv sync`
 Expected: pytest installed into the project venv.
 
-- [ ] **Step 2: Modify `build_db.py` to create an FTS index per table**
+- [ ] **Step 2: Modify `build_db.py` to add an integer `id` primary key + FTS index per table**
 
-In `database/build_db.py`, the loop currently creates each table and inserts into `meta`. Load the fts extension once before the loop, and create the index inside the loop right after the `INSERT INTO meta` call.
+In `database/build_db.py`: load the fts extension once before the loop; give each
+terminology table a surrogate integer primary key `id`; create the FTS index on
+that `id`.
 
 Add, immediately after `con = duckdb.connect(str(DB_PATH))`:
 
@@ -63,20 +65,47 @@ Add, immediately after `con = duckdb.connect(str(DB_PATH))`:
     con.execute("INSTALL fts; LOAD fts;")
 ```
 
-Inside the `for parquet in parquets:` loop, after the `con.execute("INSERT INTO meta VALUES (?, ?, ?)", [name, parquet.name, version])` line, add:
+Replace the existing table-creation `con.execute(...)` (the `CREATE OR REPLACE
+TABLE {name} AS SELECT *, CAST(0.0 AS DOUBLE) AS freq FROM read_parquet(?)` call)
+with a version that prepends a surrogate integer id, then promotes it to a
+primary key:
 
 ```python
-        # `code` is unique per table -> it is the FTS document id.
+        # Surrogate integer primary key. `code` is NOT unique in adicap (codes
+        # are reused across ADICAP dictionaries), so we add a stable per-table
+        # `id` and use it as the concept identifier everywhere (FTS doc id,
+        # concept lookup, tree/result selection). `code` is display-only.
+        con.execute(
+            f"CREATE OR REPLACE TABLE {name} AS "
+            "SELECT CAST(row_number() OVER () AS BIGINT) AS id, *, "
+            "CAST(0.0 AS DOUBLE) AS freq "
+            "FROM read_parquet(?)",
+            [str(parquet)],
+        )
+        con.execute(f"ALTER TABLE {name} ADD PRIMARY KEY (id)")
+```
+
+Then, after the existing `INSERT INTO meta VALUES (?, ?, ?)` call, add the FTS
+index on `id`:
+
+```python
         # keywords is already lowercased/accent-stripped; stemmer keeps French
         # medical terms consistent between index and query. overwrite=1 makes
         # rebuilds idempotent.
         con.execute(
-            f"PRAGMA create_fts_index('{name}', 'code', 'keywords', "
+            f"PRAGMA create_fts_index('{name}', 'id', 'keywords', "
             "stemmer='french', stopwords='none', overwrite=1)"
         )
 ```
 
 (`name` is already validated against `^[a-z][a-z0-9_]*$` earlier in the loop, so the f-string interpolation is safe.)
+
+> **Identifier note (applies to the WHOLE plan):** a concept is identified by
+> its integer **`id`** (per-table primary key), never by `code`. `code` is
+> non-unique in adicap and is used for *display only*. Every FTS query, concept
+> lookup, tree/result selection, and breadcrumb navigation keys on `id`. `path`
+> is still used for hierarchy queries (children via `path LIKE 'P/%'`) and for
+> display, but is not the identity key.
 
 - [ ] **Step 3: Rebuild the database**
 
@@ -142,31 +171,43 @@ def test_children_of_a_root(con, table):
 
 
 @pytest.mark.parametrize("table", TABLES)
+def test_id_is_unique_primary_key(con, table):
+    n, distinct, nulls = con.execute(
+        f"SELECT count(*), count(DISTINCT id), count(*) FILTER (WHERE id IS NULL) "
+        f"FROM {table}"
+    ).fetchone()
+    assert distinct == n and nulls == 0  # id is a non-null unique key
+
+
+@pytest.mark.parametrize("table", TABLES)
 def test_fts_index_present_and_ranks(con, table):
-    # Pick a real keyword token from the table, then search for it.
+    # Deterministically pick a real alphabetic keyword token (>=4 letters) so the
+    # probe survives the tokenizer (it drops pure-digit tokens like "00").
     word = con.execute(
-        f"SELECT split_part(keywords, ' ', 1) FROM {table} "
-        f"WHERE keywords IS NOT NULL AND length(keywords) > 3 LIMIT 1"
+        f"SELECT word FROM ("
+        f"  SELECT unnest(string_split(keywords, ' ')) AS word, lft FROM {table} "
+        f"  WHERE keywords IS NOT NULL"
+        f") WHERE regexp_matches(word, '^[a-z]{{4,}}$') ORDER BY lft LIMIT 1"
     ).fetchone()[0]
     rows = con.execute(
-        f"SELECT code, label, freq, "
-        f"fts_main_{table}.match_bm25(code, ?, conjunctive := 1) AS score "
+        f"SELECT id, code, label, freq, "
+        f"fts_main_{table}.match_bm25(id, ?, conjunctive := 1) AS score "
         f"FROM {table} WHERE score IS NOT NULL "
         f"ORDER BY score DESC, freq DESC LIMIT 300",
         [word],
     ).fetchall()
     assert len(rows) >= 1
-    assert rows[0][3] is not None  # has a BM25 score
+    assert rows[0][4] is not None  # has a BM25 score
 
 
 @pytest.mark.parametrize("table", TABLES)
 def test_concept_and_ancestors(con, table):
     # A node at depth >= 2 so it has ancestors.
     node = con.execute(
-        f"SELECT code, lft, rgt FROM {table} WHERE depth >= 2 ORDER BY lft LIMIT 1"
+        f"SELECT id, lft, rgt FROM {table} WHERE depth >= 2 ORDER BY lft LIMIT 1"
     ).fetchone()
-    code, lft, rgt = node
-    one = con.execute(f"SELECT * FROM {table} WHERE code = ?", [code]).fetchone()
+    node_id, lft, rgt = node
+    one = con.execute(f"SELECT * FROM {table} WHERE id = ?", [node_id]).fetchone()
     assert one is not None
     anc = con.execute(
         f"SELECT code, label FROM {table} "
@@ -396,7 +437,7 @@ Before the final `export { rows as _rows, ... }` line, add these exports. The SQ
 export async function roots(table) {
   assertTable(table);
   return rows(
-    `SELECT code, label, depth, lft, rgt, path, freq
+    `SELECT id, code, label, depth, lft, rgt, path, freq
      FROM termose.${table} WHERE depth = 0 ORDER BY lft`,
   );
 }
@@ -404,7 +445,7 @@ export async function roots(table) {
 export async function children(table, path, depth) {
   assertTable(table);
   return rows(
-    `SELECT code, label, depth, lft, rgt, path, freq
+    `SELECT id, code, label, depth, lft, rgt, path, freq
      FROM termose.${table} WHERE path LIKE ? AND depth = ? ORDER BY lft`,
     [path + "/%", depth + 1],
   );
@@ -415,8 +456,8 @@ export async function search(table, query) {
   const q = (query || "").trim();
   if (!q) return [];
   return rows(
-    `SELECT code, label, depth, path, freq,
-            termose.fts_main_${table}.match_bm25(code, ?, conjunctive := 1) AS score
+    `SELECT id, code, label, depth, lft, rgt, path, freq,
+            termose.fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
      FROM termose.${table}
      WHERE score IS NOT NULL
      ORDER BY score DESC, freq DESC
@@ -425,18 +466,19 @@ export async function search(table, query) {
   );
 }
 
-// Full row (all columns) for the concept panel; null if missing.
-export async function concept(table, code) {
+// Full row (all columns) for the concept panel; keyed by the integer id. null if missing.
+export async function concept(table, id) {
   assertTable(table);
-  const r = await rows(`SELECT * FROM termose.${table} WHERE code = ?`, [code]);
+  const r = await rows(`SELECT * FROM termose.${table} WHERE id = ?`, [id]);
   return r[0] || null;
 }
 
 // Ancestor chain (root -> parent), ordered, for the breadcrumb. Uses nested set.
+// Returns id too so crumbs navigate by the unique identifier.
 export async function ancestors(table, lft, rgt) {
   assertTable(table);
   return rows(
-    `SELECT code, label, depth FROM termose.${table}
+    `SELECT id, code, label, depth, path FROM termose.${table}
      WHERE lft < ? AND rgt > ? ORDER BY lft`,
     [lft, rgt],
   );
@@ -444,7 +486,7 @@ export async function ancestors(table, lft, rgt) {
 
 // Column names of a terminology table, in declared order (drives the generic
 // Concept attribute list). Excludes the common columns the shared UI renders.
-const COMMON = new Set(["code", "label", "depth", "lft", "rgt", "path", "keywords", "freq"]);
+const COMMON = new Set(["id", "code", "label", "depth", "lft", "rgt", "path", "keywords", "freq"]);
 export async function extraColumns(table) {
   assertTable(table);
   const cols = await rows(
@@ -475,13 +517,17 @@ await check("search(cim10,'tumeur') ranks", async () => {
   const r = await db.search("cim10", "tumeur");
   if (!r.length || r[0].score == null) throw new Error("no ranked hit");
 });
-await check("concept() + ancestors()", async () => {
+await check("search(adicap) ranks (duplicate codes)", async () => {
+  const r = await db.search("adicap", "biopsie");
+  if (!r.length || r[0].score == null) throw new Error("no ranked hit");
+});
+await check("concept() by id + ancestors()", async () => {
   const r = await db.roots("cim10");
   const k = await db.children("cim10", r[0].path, r[0].depth);
-  const c = await db.concept("cim10", k[0].code);
+  const c = await db.concept("cim10", k[0].id);
   if (!c) throw new Error("no concept");
   const a = await db.ancestors("cim10", k[0].lft, k[0].rgt);
-  if (!a.length) throw new Error("no ancestors");
+  if (!a.length || a[0].id == null) throw new Error("no ancestors/id");
 });
 await check("extraColumns(adicap) excludes common", async () => {
   const cols = await db.extraColumns("adicap");
@@ -493,7 +539,7 @@ await check("extraColumns(adicap) excludes common", async () => {
 
 Run: `python3 -m http.server 8000`
 Open `http://localhost:8000/smoke.html`.
-Expected: all `PASS` (now 7 lines). Stop the server.
+Expected: all `PASS` (now 8 lines). Stop the server.
 
 - [ ] **Step 4: Commit**
 
@@ -676,7 +722,7 @@ const CHEVRON =
 
 function nodeRow(n) {
   const node = el("div", "node");
-  node.dataset.code = n.code;
+  node.dataset.id = n.id; // integer id is the unique identifier (code is not unique in adicap)
   const isLeaf = n.rgt - n.lft <= 1; // nested-set: leaf has no descendants
   const row = el("div", "node-row" + (n.depth === 0 ? " is-chapter" : ""));
   row.innerHTML =
@@ -699,7 +745,7 @@ function nodeRow(n) {
     }
   }
   twisty.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
-  row.addEventListener("click", () => selectConcept(n.code)); // Task 8
+  row.addEventListener("click", () => selectConcept(n.id)); // Task 8
   return node;
 }
 
@@ -721,7 +767,7 @@ Also wire the "Tout replier" button — add inside `boot()` after `initSplitters
   });
 ```
 
-Add a stub `async function selectConcept(code) {}` near the other stubs (filled in Task 8).
+Add a stub `async function selectConcept(id) {}` near the other stubs (filled in Task 8).
 
 - [ ] **Step 2: Verify lazy expansion**
 
@@ -756,7 +802,7 @@ function fmtFreq(freq) {
 
 function resultItem(n, query) {
   const item = el("div", "result");
-  item.dataset.code = n.code;
+  item.dataset.id = n.id; // identity = integer id; code is display-only
   const { pct } = fmtFreq(n.freq);
   item.innerHTML =
     `<div class="r-top"><span class="r-label">${esc(n.label)}</span></div>` +
@@ -765,7 +811,7 @@ function resultItem(n, query) {
       `<span class="freq"><span class="freq-bar"><i style="width:${pct}%"></i></span>` +
       `<span class="freq-val">${pct}%</span></span>` +
     `</div>`;
-  item.addEventListener("click", () => selectConcept(n.code));
+  item.addEventListener("click", () => selectConcept(n.id));
   return item;
 }
 
@@ -827,7 +873,7 @@ Reuse `design/app.js`'s detail markup classes (`.d-head`, `.d-code`, `.d-label`,
 
 - [ ] **Step 1: Implement the concept panel**
 
-Replace the `async function selectConcept(code) {}` stub with:
+Replace the `async function selectConcept(id) {}` stub with:
 
 ```js
 function factBlock(k, v) {
@@ -843,28 +889,29 @@ function attrValue(v) {
   return `<div class="av">${esc(String(v)).replace(/\n/g, "<br>")}</div>`;
 }
 
-function highlightTreeSelection(code) {
+function highlightTreeSelection(id) {
   document.querySelectorAll("#tree .node-row.selected").forEach((r) => r.classList.remove("selected"));
-  const node = document.querySelector(`#tree .node[data-code="${CSS.escape(code)}"] > .node-row`);
+  const node = document.querySelector(`#tree .node[data-id="${id}"] > .node-row`);
   if (node) node.classList.add("selected");
   document.querySelectorAll("#results .result.active").forEach((r) => r.classList.remove("active"));
-  const res = document.querySelector(`#results .result[data-code="${CSS.escape(code)}"]`);
+  const res = document.querySelector(`#results .result[data-id="${id}"]`);
   if (res) res.classList.add("active");
 }
 
-async function selectConcept(code) {
-  state.selected = code;
-  highlightTreeSelection(code);
+async function selectConcept(id) {
+  id = Number(id); // normalize: may arrive as BigInt (Arrow) or string (dataset)
+  state.selected = id;
+  highlightTreeSelection(id);
   const detail = $("#detail");
   try {
-    const c = await db.concept(state.term, code);
-    if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable : ${esc(code)}</p></div>`; return; }
+    const c = await db.concept(state.term, id);
+    if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
     const { pct, label } = fmtFreq(c.freq);
 
     const crumbs = anc
-      .map((a) => `<span class="crumb" data-code="${esc(a.code)}">${esc(a.code)}</span>`)
+      .map((a) => `<span class="crumb" data-id="${esc(a.id)}">${esc(a.code)}</span>`)
       .join('<span class="crumb-sep">/</span>');
 
     const attrs = cols
@@ -887,7 +934,7 @@ async function selectConcept(code) {
     </div>`;
 
     detail.querySelectorAll(".crumb").forEach((cr) =>
-      cr.addEventListener("click", () => selectConcept(cr.dataset.code)));
+      cr.addEventListener("click", () => selectConcept(cr.dataset.id)));
   } catch (e) {
     console.error(e);
     detail.innerHTML = `<div class="detail-empty"><p>Erreur : ${esc(e.message)}</p></div>`;
