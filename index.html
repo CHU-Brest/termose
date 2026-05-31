@@ -153,7 +153,10 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .icon-btn svg { width: 17px; height: 17px; }
 
 /* ---- cart ---- */
+.header-actions { display: flex; align-items: center; gap: 8px; } /* keep cart + theme tight together */
 .cart-wrap { position: relative; }
+#cartBtn svg { width: 20px; height: 20px; }
+#cartBtn.has-items { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--panel-2)); }
 .cart-badge {
   position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px;
   padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--accent-ink);
@@ -182,8 +185,15 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .cart-actions .cart-clear { margin-left: auto; color: #c0392b; }
 html[data-theme="dark"] .cart-actions .cart-clear { color: #f1948a; }
 .d-head .spacer { flex: 1; }
-.btn.cart-add { border: 1px solid var(--border); }
-.btn.cart-add.in-cart { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+/* prominent primary CTA: add to cart */
+.btn.cart-add {
+  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 9px;
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+}
+.btn.cart-add:hover { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; color: var(--accent-ink); }
+/* in-cart = toggle-off look (muted outline) */
+.btn.cart-add.in-cart { background: transparent; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.btn.cart-add.in-cart:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
 /* ---- search bar row (full width, under header) ---- */
 .searchbar-row {
@@ -500,6 +510,7 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 
     <span class="spacer"></span>
 
+    <div class="header-actions">
     <div class="cart-wrap">
       <button class="icon-btn" id="cartBtn" title="Panier" aria-label="Panier">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1.2 9.4a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L5 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
@@ -519,6 +530,7 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
     <button class="icon-btn" id="themeBtn" title="Basculer clair / sombre" aria-label="Basculer le thème">
       <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
     </button>
+    </div>
   </header>
 
   <!-- ===================== SEARCH BAR ===================== -->

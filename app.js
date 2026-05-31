@@ -166,8 +166,9 @@ function refreshCart() {
   if (btn && state.current) {
     const on = inCart(state.current.code);
     btn.classList.toggle("in-cart", on);
-    btn.textContent = on ? "✓ Dans le panier" : "+ Panier";
+    btn.textContent = on ? "✓ Dans le panier" : "Ajouter au panier";
   }
+  $("#cartBtn").classList.toggle("has-items", codes.length > 0);
 }
 
 function renderCartMenu() {
@@ -445,7 +446,7 @@ async function selectConcept(id) {
       <div class="d-head">
         <span class="d-code">${esc(c.code)}</span>
         <span class="spacer"></span>
-        <button class="btn cart-add${inCart(c.code) ? " in-cart" : ""}" id="conceptCartBtn">${inCart(c.code) ? "✓ Dans le panier" : "+ Panier"}</button>
+        <button class="btn cart-add${inCart(c.code) ? " in-cart" : ""}" id="conceptCartBtn">${inCart(c.code) ? "✓ Dans le panier" : "Ajouter au panier"}</button>
       </div>
       <h2 class="d-label">${esc(c.label)}</h2>
       <div class="freq-mini">
