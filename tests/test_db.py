@@ -96,3 +96,11 @@ def test_concept_and_ancestors(con, table):
         [lft, rgt],
     ).fetchall()
     assert len(anc) >= 1  # at least the chapter above it
+
+
+def test_ccam_labels_have_no_code_prefix(con):
+    # Temporary patch in build_db.py strips the "<code> " prefix from CCAM labels.
+    n = con.execute(
+        "SELECT count(*) FROM ccam WHERE starts_with(label, code || ' ')"
+    ).fetchone()[0]
+    assert n == 0
