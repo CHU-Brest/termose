@@ -289,8 +289,9 @@ function initSearch() {
 }
 
 // =================================================================== CONCEPT
+// Small nested-set chip (same scale as the breadcrumb crumbs).
 function factBlock(k, v) {
-  return `<div class="fact"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`;
+  return `<span class="ns-fact"><span class="nk">${esc(k)}</span><span class="nv">${esc(v)}</span></span>`;
 }
 
 function attrValue(v) {
@@ -350,7 +351,7 @@ async function selectConcept(id) {
         <span class="fm-val">${pct} %</span>
       </div>
       ${anc.length ? `<div class="section"><div class="section-h">Hiérarchie</div><div class="d-breadcrumb">${crumbs}</div></div>` : ""}
-      <div class="section"><div class="section-h">Position (nested set)</div><div class="facts">
+      <div class="section"><div class="section-h">Position (nested set)</div><div class="ns-facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>
       ${parentsHtml}
