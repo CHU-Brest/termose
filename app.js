@@ -73,7 +73,17 @@ function initSplitters() {
   });
 }
 
-// Footer attribution for the active terminology (CC BY-NC-ND 3.0 IGO etc.).
+// Known licence → deed URL, so the footer links to the right deed whatever the
+// per-terminology licence is (the YAML only needs the licence name).
+const LICENSE_URLS = {
+  "CC BY-NC-ND 3.0 IGO": "https://creativecommons.org/licenses/by-nc-nd/3.0/igo/",
+  "CC BY-ND 3.0 IGO": "https://creativecommons.org/licenses/by-nd/3.0/igo/",
+  "CC BY 3.0 IGO": "https://creativecommons.org/licenses/by/3.0/igo/",
+  LOv2: "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+  "Licence Ouverte 2.0": "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+};
+
+// Footer attribution for the active terminology.
 function renderFooterCredit() {
   const box = $("#footAttrib");
   if (!box) return;
@@ -86,8 +96,9 @@ function renderFooterCredit() {
       : esc(t.source)));
   }
   if (t.license) {
-    parts.push(t.license_url
-      ? `<a href="${esc(t.license_url)}" target="_blank" rel="noopener">${esc(t.license)}</a>`
+    const licUrl = LICENSE_URLS[t.license] || t.license_url;
+    parts.push(licUrl
+      ? `<a href="${esc(licUrl)}" target="_blank" rel="noopener">${esc(t.license)}</a>`
       : esc(t.license));
   }
   box.innerHTML = parts.join(" · ");
