@@ -21,6 +21,18 @@ const state = {
   tab: "tree", // active left-pane tab: "tree" | "results"
 };
 
+// ----------------------------------------------------------- keyboard shortcuts
+function initShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault(); // Ctrl/⌘+K → focus the search bar
+      const input = $("#search");
+      input.focus();
+      input.select();
+    }
+  });
+}
+
 // ---------------------------------------------------------------- theme
 function initTheme() {
   const root = document.documentElement;
@@ -371,6 +383,7 @@ async function selectConcept(id) {
 async function boot() {
   initTheme();
   initSplitters();
+  initShortcuts();
   initTabs();
   setTab("tree");
   initSearch();
