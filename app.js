@@ -137,6 +137,7 @@ function nodeRow(n) {
   }
   twisty.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
   row.addEventListener("click", () => selectConcept(n.id));
+  row.addEventListener("dblclick", () => toggle()); // double-click anywhere on the row expands/collapses
   return node;
 }
 
