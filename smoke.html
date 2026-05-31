@@ -20,6 +20,35 @@ await check("listTerminologies() returns 3", async () => {
   const t = await db.listTerminologies();
   if (t.length !== 3) throw new Error("got " + t.length);
 });
+await check("roots(cim10) non-empty", async () => {
+  const r = await db.roots("cim10");
+  if (!r.length || r[0].depth !== 0) throw new Error("bad roots");
+});
+await check("children() of first root", async () => {
+  const r = await db.roots("ccam");
+  const k = await db.children("ccam", r[0].path, r[0].depth);
+  if (!k.length) throw new Error("no children");
+});
+await check("search(cim10,'tumeur') ranks", async () => {
+  const r = await db.search("cim10", "tumeur");
+  if (!r.length || r[0].score == null) throw new Error("no ranked hit");
+});
+await check("search(adicap) ranks (duplicate codes)", async () => {
+  const r = await db.search("adicap", "biopsie");
+  if (!r.length || r[0].score == null) throw new Error("no ranked hit");
+});
+await check("concept() by id + ancestors()", async () => {
+  const r = await db.roots("cim10");
+  const k = await db.children("cim10", r[0].path, r[0].depth);
+  const c = await db.concept("cim10", k[0].id);
+  if (!c) throw new Error("no concept");
+  const a = await db.ancestors("cim10", k[0].lft, k[0].rgt);
+  if (!a.length || a[0].id == null) throw new Error("no ancestors/id");
+});
+await check("extraColumns(adicap) excludes common", async () => {
+  const cols = await db.extraColumns("adicap");
+  if (cols.includes("code") || cols.includes("id") || !cols.includes("anatomy_label")) throw new Error(cols.join(","));
+});
 window.__db = db; // reused by later smoke steps
 document.body.dataset.done = "1"; // signal for the headless harness
 </script></body></html>

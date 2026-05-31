@@ -57,4 +57,68 @@ function assertTable(table) {
   if (!_tables || !_tables.has(table)) throw new Error(`Terminologie inconnue: ${table}`);
 }
 
+export async function roots(table) {
+  assertTable(table);
+  return rows(
+    `SELECT id, code, label, depth, lft, rgt, path, freq
+     FROM termose.${table} WHERE depth = 0 ORDER BY lft`,
+  );
+}
+
+export async function children(table, path, depth) {
+  assertTable(table);
+  return rows(
+    `SELECT id, code, label, depth, lft, rgt, path, freq
+     FROM termose.${table} WHERE path LIKE ? AND depth = ? ORDER BY lft`,
+    [path + "/%", depth + 1],
+  );
+}
+
+export async function search(table, query) {
+  assertTable(table);
+  const q = (query || "").trim();
+  if (!q) return [];
+  return rows(
+    `SELECT id, code, label, depth, lft, rgt, path, freq,
+            termose.fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
+     FROM termose.${table}
+     WHERE score IS NOT NULL
+     ORDER BY score DESC, freq DESC
+     LIMIT 300`,
+    [q],
+  );
+}
+
+// Full row (all columns) for the concept panel; keyed by the integer id. null if missing.
+export async function concept(table, id) {
+  assertTable(table);
+  const r = await rows(`SELECT * FROM termose.${table} WHERE id = ?`, [id]);
+  return r[0] || null;
+}
+
+// Ancestor chain (root -> parent), ordered, for the breadcrumb. Uses nested set.
+// Returns id too so crumbs navigate by the unique identifier.
+export async function ancestors(table, lft, rgt) {
+  assertTable(table);
+  return rows(
+    `SELECT id, code, label, depth, path FROM termose.${table}
+     WHERE lft < ? AND rgt > ? ORDER BY lft`,
+    [lft, rgt],
+  );
+}
+
+// Column names of a terminology table, in declared order (drives the generic
+// Concept attribute list). Excludes the common columns the shared UI renders.
+const COMMON = new Set(["id", "code", "label", "depth", "lft", "rgt", "path", "keywords", "freq"]);
+export async function extraColumns(table) {
+  assertTable(table);
+  const cols = await rows(
+    `SELECT column_name FROM information_schema.columns
+     WHERE table_catalog = 'termose' AND table_name = ?
+     ORDER BY ordinal_position`,
+    [table],
+  );
+  return cols.map((c) => c.column_name).filter((c) => !COMMON.has(c));
+}
+
 export { rows as _rows, assertTable as _assertTable }; // used by helpers in Task 4
