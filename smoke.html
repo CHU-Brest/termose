@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>termose smoke</title>
+<style>body{font:14px monospace;padding:20px}.p{color:green}.f{color:red}</style>
+</head><body><h1>db.js smoke test</h1><div id="out"></div>
+<script type="module">
+import * as db from "./db.js";
+const out = document.getElementById("out");
+const log = (ok, msg) => {
+  const d = document.createElement("div");
+  d.className = ok ? "p" : "f";
+  d.textContent = (ok ? "PASS " : "FAIL ") + msg;
+  out.appendChild(d);
+};
+async function check(name, fn) {
+  try { await fn(); log(true, name); }
+  catch (e) { log(false, name + " — " + e.message); console.error(e); }
+}
+await check("init() boots + attaches", async () => { await db.init(); });
+await check("listTerminologies() returns 3", async () => {
+  const t = await db.listTerminologies();
+  if (t.length !== 3) throw new Error("got " + t.length);
+});
+window.__db = db; // reused by later smoke steps
+document.body.dataset.done = "1"; // signal for the headless harness
+</script></body></html>

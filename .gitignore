@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Node — test-only headless-browser harness scaffolding (not part of the app)
+node_modules/
+package.json
+package-lock.json
+tools/
