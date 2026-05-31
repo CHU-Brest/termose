@@ -250,9 +250,8 @@ async function selectConcept(id) {
       <div class="d-head"><span class="d-code">${esc(c.code)}</span></div>
       <h2 class="d-label">${esc(c.label)}</h2>
       <div class="freq-mini">
-        <span class="fm-val">${pct} %</span>
         <span class="fm-bar"><i style="width:${pct}%"></i></span>
-        <span class="fm-cap">fréquence</span>
+        <span class="fm-val">${pct} %</span>
       </div>
       ${anc.length ? `<div class="section"><div class="section-h">Hiérarchie</div><div class="d-breadcrumb">${crumbs}</div></div>` : ""}
       <div class="section"><div class="section-h">Position (nested set)</div><div class="facts">
