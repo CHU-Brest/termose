@@ -65,7 +65,7 @@ export async function init() {
 
 export async function listTerminologies() {
   const r = await rows(
-    "SELECT table_name, version, source_file FROM meta ORDER BY table_name",
+    "SELECT table_name, version, source_file, source, url, license, license_url FROM meta ORDER BY table_name",
   );
   _tables = new Set(r.map((t) => t.table_name));
   return r;

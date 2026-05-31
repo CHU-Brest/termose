@@ -27,6 +27,15 @@ def test_meta_lists_all_terminologies(con):
     assert names == ["adicap", "atc", "ccam", "cim10"]
 
 
+def test_meta_has_license_attribution(con):
+    # Each terminology must carry a non-empty license for CC BY-NC-ND attribution.
+    rows = con.execute(
+        "SELECT table_name, source, license, license_url FROM meta ORDER BY table_name"
+    ).fetchall()
+    for table_name, source, license_, _url in rows:
+        assert license_, f"{table_name}: licence manquante"
+
+
 @pytest.mark.parametrize("table", TABLES)
 def test_id_is_unique_primary_key(con, table):
     n, distinct, nulls = con.execute(

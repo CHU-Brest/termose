@@ -73,6 +73,26 @@ function initSplitters() {
   });
 }
 
+// Footer attribution for the active terminology (CC BY-NC-ND 3.0 IGO etc.).
+function renderFooterCredit() {
+  const box = $("#footAttrib");
+  if (!box) return;
+  const t = state.terms.find((x) => x.table_name === state.term);
+  if (!t || (!t.source && !t.license)) { box.innerHTML = ""; return; }
+  const parts = [`<b>${esc(t.table_name.toUpperCase())}</b>`];
+  if (t.source) {
+    parts.push("Source : " + (t.url
+      ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.source)}</a>`
+      : esc(t.source)));
+  }
+  if (t.license) {
+    parts.push(t.license_url
+      ? `<a href="${esc(t.license_url)}" target="_blank" rel="noopener">${esc(t.license)}</a>`
+      : esc(t.license));
+  }
+  box.innerHTML = parts.join(" · ");
+}
+
 // ---------------------------------------------- terminology switch (from meta)
 function renderTermSelect() {
   const sel = $("#termSelect");
@@ -93,6 +113,7 @@ async function switchTerm(table) {
   state.current = null;
   $("#cartMenu").hidden = true;
   refreshCart(); // badge/menu follow the active terminology
+  renderFooterCredit();
   clearResults();
   clearDetail();
   $("#search").value = "";
@@ -507,6 +528,7 @@ async function boot() {
     // Prefer CIM-10 as the default (the headline terminology); fall back to first.
     state.term = (state.terms.find((t) => t.table_name === "cim10") || state.terms[0])?.table_name || null;
     renderTermSelect();
+    renderFooterCredit();
     refreshCart();
     clearResults();
     clearDetail();

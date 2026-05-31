@@ -500,8 +500,9 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .appfoot {
   flex: 0 0 auto; padding: 8px 16px; border-top: 1px solid var(--border);
   background: var(--header); color: var(--text-3);
-  font-size: 12px; text-align: center;
+  font-size: 12px; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; justify-content: space-between;
 }
+.foot-attrib { color: var(--text-2); }
 .appfoot a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--border-strong); }
 .appfoot a:hover { color: var(--accent); border-color: var(--accent); }
 </style>
@@ -597,9 +598,10 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 
   <!-- ===================== FOOTER ===================== -->
   <footer class="appfoot">
-    Construit à partir du
-    <a href="https://smt.esante.gouv.fr/" target="_blank" rel="noopener">serveur multi-terminologique (SMT)</a>
-    de l'Agence du Numérique en Santé.
+    <span class="foot-credit">Construit à partir du
+      <a href="https://smt.esante.gouv.fr/" target="_blank" rel="noopener">serveur multi-terminologique (SMT)</a>
+      de l'Agence du Numérique en Santé.</span>
+    <span class="foot-attrib" id="footAttrib"></span>
   </footer>
 </div>
 
