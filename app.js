@@ -256,7 +256,6 @@ async function selectConcept(id) {
       ${anc.length ? `<div class="section"><div class="section-h">Hiérarchie</div><div class="d-breadcrumb">${crumbs}</div></div>` : ""}
       <div class="section"><div class="section-h">Position (nested set)</div><div class="facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
-        <div class="fact path-fact"><div class="k">path</div><div class="v">${esc(c.path)}</div></div>
       </div></div>
       <div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>
     </div>`;
