@@ -49,6 +49,14 @@ await check("extraColumns(adicap) excludes common", async () => {
   const cols = await db.extraColumns("adicap");
   if (cols.includes("code") || cols.includes("id") || !cols.includes("anatomy_label")) throw new Error(cols.join(","));
 });
+await check("searchTree(cim10,'grippe') prunes + flags matches", async () => {
+  const t = await db.searchTree("cim10", "grippe");
+  if (!t.length) throw new Error("empty");
+  if (!t.some((n) => n.is_match)) throw new Error("no is_match flagged");
+  if (t[0].depth !== 0) throw new Error("not pre-order (first row should be a root)");
+  const empty = await db.searchTree("cim10", "");
+  if (empty.length) throw new Error("empty query should return []");
+});
 window.__db = db; // reused by later smoke steps
 document.body.dataset.done = "1"; // signal for the headless harness
 </script></body></html>

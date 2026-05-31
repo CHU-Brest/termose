@@ -15,6 +15,7 @@ const state = {
   term: null, // current terminology table name
   terms: [], // [{table_name, version, source_file}]
   selected: null, // selected id
+  tab: "tree", // active left-pane tab: "tree" | "results"
 };
 
 // ---------------------------------------------------------------- theme
@@ -84,6 +85,7 @@ async function switchTerm(table) {
   clearDetail();
   $("#search").value = "";
   $("#clearBtn").classList.remove("show");
+  setTab("tree");
   await loadTree();
 }
 
@@ -99,8 +101,24 @@ function showBootSpinner() {
   $("#tree").innerHTML = `<div class="empty-state"><p>Chargement de la base…</p></div>`;
 }
 function clearResults() {
-  $("#results").innerHTML = "";
   $("#resultsMeta").innerHTML = "";
+  $("#results").innerHTML =
+    `<div class="empty-state"><p>Tapez une recherche pour lister les concepts.</p></div>`;
+}
+
+// ----------------------------------------------------------------- tabs
+function setTab(tab) {
+  state.tab = tab;
+  const isTree = tab === "tree";
+  $("#tabTreeBtn").setAttribute("aria-pressed", String(isTree));
+  $("#tabResultsBtn").setAttribute("aria-pressed", String(!isTree));
+  $("#tabTree").hidden = !isTree;
+  $("#tabResults").hidden = isTree;
+  $("#treeToolbar").style.display = isTree ? "" : "none"; // collapse-all only on the tree tab
+}
+function initTabs() {
+  $("#tabTreeBtn").addEventListener("click", () => setTab("tree"));
+  $("#tabResultsBtn").addEventListener("click", () => setTab("results"));
 }
 function clearDetail() {
   $("#detail").innerHTML =
@@ -155,6 +173,55 @@ async function loadTree() {
   rs.forEach((r) => tree.appendChild(nodeRow(r)));
 }
 
+// Filtered tree (search mode): flat rows (matches + ancestors, lft-ordered) rebuilt
+// into a pruned, fully-expanded tree. Children are already present — no DB calls.
+function renderFilteredTree(nodes) {
+  const tree = $("#tree");
+  tree.innerHTML = "";
+  if (!nodes.length) {
+    tree.innerHTML = `<div class="empty-state"><p>Aucun concept trouvé.</p></div>`;
+    return;
+  }
+  const byPath = new Map();
+  nodes.forEach((n) => { n._kids = []; byPath.set(n.path, n); });
+  const roots = [];
+  nodes.forEach((n) => {
+    const cut = n.path.lastIndexOf("/");
+    const parent = cut > 0 ? byPath.get(n.path.slice(0, cut)) : null;
+    (parent ? parent._kids : roots).push(n);
+  });
+  roots.forEach((r) => tree.appendChild(filteredNode(r)));
+}
+
+function filteredNode(n) {
+  const node = el("div", "node");
+  node.dataset.id = n.id;
+  const hasKids = n._kids && n._kids.length > 0;
+  const row = el(
+    "div",
+    "node-row" + (n.depth === 0 ? " is-chapter" : "") + (n.is_match ? " matched" : ""),
+  );
+  row.innerHTML =
+    `<span class="twisty${hasKids ? " open" : " leaf"}">${CHEVRON}</span>` +
+    `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
+    `<span class="node-label">${esc(n.label)}</span>`;
+  const kids = el("div", "kids" + (hasKids ? " open" : ""));
+  node.appendChild(row);
+  node.appendChild(kids);
+  if (hasKids) n._kids.forEach((c) => kids.appendChild(filteredNode(c)));
+
+  const twisty = row.querySelector(".twisty");
+  const toggle = () => {
+    if (!hasKids) return;
+    const open = kids.classList.toggle("open");
+    twisty.classList.toggle("open", open);
+  };
+  twisty.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+  row.addEventListener("click", () => selectConcept(n.id));
+  row.addEventListener("dblclick", () => toggle());
+  return node;
+}
+
 // =================================================================== RESULTS
 function fmtFreq(freq) {
   return { pct: Math.round((Number(freq) || 0) * 100) };
@@ -193,20 +260,32 @@ function initSearch() {
   const run = async () => {
     const q = input.value.trim();
     clear.classList.toggle("show", q.length > 0);
-    if (!q) { clearResults(); return; }
+    if (!q) { clearResults(); await loadTree(); return; } // empty: prompt + full browse tree
     try {
-      const list = await db.search(state.term, q);
+      // One query feeds the flat Résultats list, the other the filtered Hiérarchie.
+      const [list, treeNodes] = await Promise.all([
+        db.search(state.term, q),
+        db.searchTree(state.term, q),
+      ]);
       renderResults(list, q);
+      renderFilteredTree(treeNodes);
     } catch (e) {
       console.error(e);
-      $("#results").innerHTML = `<div class="empty-state"><p>Erreur de recherche : ${esc(e.message)}</p></div>`;
+      const err = `<div class="empty-state"><p>Erreur : ${esc(e.message)}</p></div>`;
+      $("#results").innerHTML = err;
+      $("#tree").innerHTML = err;
     }
   };
   input.addEventListener("input", () => {
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(run, 180); // debounce
   });
-  clear.addEventListener("click", () => { input.value = ""; clear.classList.remove("show"); clearResults(); });
+  clear.addEventListener("click", () => {
+    input.value = "";
+    clear.classList.remove("show");
+    clearResults();
+    loadTree();
+  });
 }
 
 // =================================================================== CONCEPT
@@ -292,6 +371,8 @@ async function selectConcept(id) {
 async function boot() {
   initTheme();
   initSplitters();
+  initTabs();
+  setTab("tree");
   initSearch();
   $("#collapseBtn").addEventListener("click", () => {
     document.querySelectorAll("#tree .kids.open").forEach((k) => k.classList.remove("open"));

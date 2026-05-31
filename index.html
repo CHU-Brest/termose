@@ -204,7 +204,13 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .col { min-width: 0; display: flex; flex-direction: column; background: var(--panel); }
 .col.left { width: var(--panel-left); flex: 0 0 auto; }
 .col.center { flex: 1 1 0; min-width: 180px; }
-.col.right { width: var(--panel-right); flex: 0 0 auto; background: var(--panel-2); }
+.col.right { flex: 1 1 0; min-width: 320px; background: var(--panel-2); }
+
+/* tab panels inside the left select view */
+.tab-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tab-panel[hidden] { display: none; }
+/* matched concepts in the filtered (search) tree */
+.node-row.matched .node-label { font-weight: 600; color: var(--text); }
 
 /* resizable splitters */
 .splitter { flex: 0 0 6px; position: relative; cursor: col-resize; background: var(--panel); touch-action: none; }
@@ -497,30 +503,32 @@ html[data-theme="dark"] .fact { background: var(--hover); }
 
   <!-- ===================== MAIN ===================== -->
   <div class="main">
-    <!-- LEFT : tree -->
+    <!-- LEFT : select view (tabs : Hiérarchie / Résultats) -->
     <section class="col left">
       <div class="col-head">
-        <span class="col-title">Hiérarchie</span>
+        <div class="term-switch" id="tabs" role="tablist">
+          <button id="tabTreeBtn" role="tab" aria-pressed="true">Hiérarchie</button>
+          <button id="tabResultsBtn" role="tab" aria-pressed="false">List</button>
+        </div>
         <span class="spacer"></span>
-        <div class="tree-toolbar">
+        <div class="tree-toolbar" id="treeToolbar">
           <button class="btn" id="collapseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M21 16v3a2 2 0 0 1-2 2h-3"/></svg>Tout replier</button>
         </div>
       </div>
-      <div class="tree scroll" id="tree"></div>
+
+      <div class="tab-panel" id="tabTree">
+        <div class="tree scroll" id="tree"></div>
+      </div>
+
+      <div class="tab-panel" id="tabResults" hidden>
+        <div class="results-meta" id="resultsMeta"></div>
+        <div class="results scroll" id="results"></div>
+      </div>
     </section>
 
-    <div class="splitter" data-resize="left" role="separator" aria-label="Redimensionner l'arbre"></div>
+    <div class="splitter" data-resize="left" role="separator" aria-label="Redimensionner"></div>
 
-    <!-- CENTER : results -->
-    <section class="col center">
-      <div class="col-head"><span class="col-title">Résultats</span></div>
-      <div class="results-meta" id="resultsMeta"></div>
-      <div class="results scroll" id="results"></div>
-    </section>
-
-    <div class="splitter" data-resize="right" role="separator" aria-label="Redimensionner le détail"></div>
-
-    <!-- RIGHT : detail -->
+    <!-- RIGHT : concept detail -->
     <section class="col right">
       <div class="col-head"><span class="col-title">Concept</span></div>
       <div class="detail scroll" id="detail"></div>
