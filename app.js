@@ -247,7 +247,15 @@ function initCart() {
     copyText("code IN (" + cartCodes().map((c) => `'${c.replace(/'/g, "''")}'`).join(", ") + ")", e.currentTarget));
   $("#cartClear").addEventListener("click", () => clearCart());
 }
+// Placeholder shown in the right column toolbar when no concept is displayed.
+const CRUMBS_PLACEHOLDER = `<span class="col-title">Concept</span>`;
+function resetCrumbs() {
+  $("#conceptCrumbs").innerHTML = CRUMBS_PLACEHOLDER;
+  $("#conceptCartBtn").hidden = true;
+}
+
 function clearDetail() {
+  resetCrumbs();
   $("#detail").innerHTML =
     `<div class="detail-empty"><p>Sélectionnez un concept dans l'arbre ou la liste de résultats pour afficher ses détails.</p></div>`;
 }
@@ -446,7 +454,7 @@ async function selectConcept(id) {
   const detail = $("#detail");
   try {
     const c = await db.concept(state.term, id);
-    if (!c) { detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
+    if (!c) { resetCrumbs(); detail.innerHTML = `<div class="detail-empty"><p>Concept introuvable (id ${esc(id)})</p></div>`; return; }
     state.current = { code: c.code, label: c.label }; // for the cart button
     const cols = await db.extraColumns(state.term);
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
@@ -454,9 +462,13 @@ async function selectConcept(id) {
     const kids = await db.children(state.term, c.path, c.depth); // first-level children only
     const { pct } = fmtFreq(c.freq);
 
-    const crumbs = anc
+    // Breadcrumb shown in the right column toolbar: clickable ancestors then the
+    // current concept as a trailing, non-clickable `current` crumb.
+    const ancCrumbs = anc
       .map((a) => `<span class="crumb" data-id="${esc(a.id)}" title="${esc(a.label)}">${esc(a.code)}</span>`)
-      .join('<span class="crumb-sep">/</span>');
+      .join('<span class="crumb-sep"></span>');
+    const currentCrumb = `<span class="crumb current" title="${esc(c.label)}">${esc(c.code)}</span>`;
+    const crumbs = (ancCrumbs ? ancCrumbs + '<span class="crumb-sep"></span>' : "") + currentCrumb;
 
     // Concepts parents — a code can have several parents (DAG flattened to a tree).
     const parentsHtml = par.length
@@ -488,15 +500,12 @@ async function selectConcept(id) {
     detail.innerHTML = `<div class="detail-inner">
       <div class="d-head">
         <span class="d-code">${esc(c.code)}</span>
-        <span class="spacer"></span>
-        <button class="btn cart-add${inCart(c.code) ? " in-cart" : ""}" id="conceptCartBtn">${inCart(c.code) ? "✓ Dans le panier" : "Ajouter au panier"}</button>
       </div>
       <h2 class="d-label">${esc(c.label)}</h2>
       <div class="freq-mini">
         <span class="fm-bar"><i style="width:${pct}%"></i></span>
         <span class="fm-val">${pct} %</span>
       </div>
-      ${anc.length ? `<div class="section"><div class="section-h">Hiérarchie</div><div class="d-breadcrumb">${crumbs}</div></div>` : ""}
       <div class="section"><div class="section-h">Position (nested set)</div><div class="ns-facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>
@@ -505,16 +514,26 @@ async function selectConcept(id) {
       ${filledCols.length ? `<div class="section"><div class="section-h">Attributs</div><div class="attr-list">${attrs}</div></div>` : ""}
     </div>`;
 
-    detail.querySelectorAll(".crumb").forEach((cr) =>
+    const crumbsBar = $("#conceptCrumbs");
+    crumbsBar.innerHTML = crumbs;
+    crumbsBar.querySelectorAll(".crumb[data-id]").forEach((cr) =>
       cr.addEventListener("click", () => selectConcept(cr.dataset.id)));
     detail.querySelectorAll(".rel[data-id]").forEach((r) =>
       r.addEventListener("click", () => selectConcept(r.dataset.id)));
-    $("#conceptCartBtn").addEventListener("click", () => {
+
+    // Cart button lives in the toolbar (persistent element): set state + handler.
+    // `.onclick` assignment (not addEventListener) avoids stacking listeners across selections.
+    const cartBtn = $("#conceptCartBtn");
+    cartBtn.hidden = false;
+    cartBtn.classList.toggle("in-cart", inCart(c.code));
+    cartBtn.textContent = inCart(c.code) ? "✓ Dans le panier" : "Ajouter au panier";
+    cartBtn.onclick = () => {
       if (inCart(c.code)) removeFromCart(c.code);
       else addToCart(c.code, c.label);
-    });
+    };
   } catch (e) {
     console.error(e);
+    resetCrumbs();
     detail.innerHTML = `<div class="detail-empty"><p>Erreur : ${esc(e.message)}</p></div>`;
   }
 }

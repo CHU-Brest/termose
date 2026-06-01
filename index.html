@@ -435,11 +435,17 @@ mark { background: var(--mark); color: var(--mark-ink); border-radius: 2px; padd
 .d-score-txt { font-size: 12px; color: var(--text-3); }
 
 .d-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; margin-bottom: 20px; font-size: 12px; }
+/* breadcrumb variant living in the right column toolbar: single line, scrolls if long */
+.col-head .d-breadcrumb { flex: 1; min-width: 0; margin-bottom: 0; flex-wrap: nowrap; overflow-x: auto; }
+/* cart button sits at the right of the toolbar, keeps its size, never shrinks */
+.col-head .cart-add { flex: 0 0 auto; padding: 6px 14px; }
+.col-head .cart-add[hidden] { display: none; } /* `.btn`'s display:inline-flex otherwise beats [hidden] */
 .crumb { font-family: var(--font-mono); font-weight: 600; color: var(--text-2); background: var(--panel); border: 1px solid var(--border); padding: 2px 7px; border-radius: 6px; cursor: pointer; transition: all .12s; }
 html[data-theme="dark"] .crumb { background: var(--hover); }
 .crumb:hover { color: var(--accent); border-color: var(--accent); }
 .crumb.current { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--selected); cursor: default; }
-.crumb-sep { color: var(--text-3); font-family: var(--font-mono); padding: 0 1px; }
+.crumb-sep { display: inline-flex; align-items: center; color: var(--text-3); padding: 0 3px; }
+.crumb-sep::before { content: "\203A"; font-size: 14px; line-height: 1; } /* › chevron between crumbs */
 
 .section { margin-bottom: 22px; }
 .section-h { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-2); margin: 0 0 9px; display: flex; align-items: center; gap: 7px; }
@@ -591,7 +597,10 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 
     <!-- RIGHT : concept detail -->
     <section class="col right">
-      <div class="col-head"><span class="col-title">Concept</span></div>
+      <div class="col-head">
+        <div class="d-breadcrumb" id="conceptCrumbs"><span class="col-title">Concept</span></div>
+        <button class="btn cart-add" id="conceptCartBtn" hidden>Ajouter au panier</button>
+      </div>
       <div class="detail scroll" id="detail"></div>
     </section>
   </div>
