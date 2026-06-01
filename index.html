@@ -152,16 +152,17 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 .icon-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .icon-btn svg { width: 17px; height: 17px; }
 
-/* primary call-to-action: generate the database (text + icon, accent-filled) */
+/* generate the database: outlined text+icon button, matching the icon buttons
+   (same height/border as the cart), no fill */
 .gen-db-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 45px; padding: 0 16px; border-radius: 10px;
-  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
-  font: inherit; font-size: 13.5px; font-weight: 600; letter-spacing: -.1px;
-  cursor: pointer; transition: background .12s, box-shadow .12s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 45px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--border); background: transparent; color: var(--text-2);
+  font: inherit; font-size: 13px; font-weight: 600; letter-spacing: -.1px;
+  cursor: pointer; transition: color .12s, border-color .12s; white-space: nowrap;
 }
-.gen-db-btn:hover { background: color-mix(in srgb, var(--accent) 88%, #000); box-shadow: var(--shadow); }
-.gen-db-btn svg { width: 17px; height: 17px; }
+.gen-db-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.gen-db-btn svg { width: 16px; height: 16px; }
 
 /* ---- cart ---- */
 .header-actions { display: flex; align-items: center; gap: 8px; } /* keep cart + theme tight together */
