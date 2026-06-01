@@ -89,7 +89,8 @@ function renderFooterCredit() {
   if (!box) return;
   const t = state.terms.find((x) => x.table_name === state.term);
   if (!t || (!t.source && !t.license)) { box.innerHTML = ""; return; }
-  const parts = [`<b>${esc(t.table_name.toUpperCase())}</b>`];
+  const name = `<b>${esc(t.table_name.toUpperCase())}</b>`;
+  const parts = [t.version ? `${name} ${esc(t.version)}` : name];
   if (t.source) {
     parts.push("Source : " + (t.url
       ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.source)}</a>`
