@@ -555,6 +555,15 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .freq-field small { font-size: 11.5px; color: var(--text-3); }
 .freq-field code { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
 
+.gen-view[hidden] { display: none; }
+.gen-log {
+  margin: 14px 0 0; padding: 10px 12px; max-height: 160px; overflow: auto;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6; color: var(--text-2);
+  white-space: pre-wrap; word-break: break-word;
+}
+.gen-log:empty { display: none; }
+
 .gen-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .gen-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-3); }
 .gen-step .gs-dot { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); transition: all .15s; position: relative; }
@@ -573,6 +582,8 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
 .gen-error[hidden] { display: none; }
 
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid var(--border); }
+.modal-actions #genDbBack { margin-right: auto; }
+.modal-actions .btn[hidden] { display: none; }
 .modal-actions .btn { border: 1px solid var(--border); padding: 8px 16px; font-size: 13px; border-radius: 9px; }
 .modal-actions .modal-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .modal-actions .modal-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); color: var(--accent-ink); }
@@ -693,39 +704,48 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
         </button>
       </div>
       <div class="modal-body">
-        <p class="modal-intro">Les terminologies sont téléchargées depuis
-          <a href="https://www.data.gouv.fr/datasets/terminologie-medicale-au-format-parquet" target="_blank" rel="noopener">data.gouv.fr</a>,
-          puis la base est construite et stockée dans votre navigateur. L'opération
-          n'est nécessaire qu'une seule fois.</p>
+        <!-- Vue 1 : options -->
+        <div class="gen-view" id="genView1">
+          <p class="modal-intro">Les terminologies sont téléchargées depuis
+            <a href="https://www.data.gouv.fr/datasets/terminologie-medicale-au-format-parquet" target="_blank" rel="noopener">data.gouv.fr</a>,
+            puis la base est construite et stockée dans votre navigateur. L'opération
+            n'est nécessaire qu'une seule fois.</p>
 
-        <label class="freq-field">
-          <span class="ff-label">Fichier de fréquences <em>(optionnel)</em></span>
-          <span class="ff-desc">Vous pouvez enrichir la base avec des fréquences personnalisées pour chaque concept.</span>
-          <input type="file" id="freqFile" accept=".parquet" />
-          <small>Format : un fichier parquet aux colonnes <code>terminologie</code> ; <code>code</code> ; <code>freq</code>.</small>
-        </label>
+          <label class="freq-field">
+            <span class="ff-label">Fichier de fréquences <em>(optionnel)</em></span>
+            <span class="ff-desc">Vous pouvez enrichir la base avec des fréquences personnalisées pour chaque concept. Format : un fichier parquet aux colonnes <code>terminologie</code> ; <code>code</code> ; <code>freq</code>.</span>
+            <input type="file" id="freqFile" accept=".parquet" />
+          </label>
+        </div>
 
-        <ul class="gen-steps" id="genSteps">
-          <li class="gen-step" data-step="download">
-            <span class="gs-dot"></span>
-            <span class="gs-label">Téléchargement</span>
-            <span class="gs-detail" id="gsDownload"></span>
-          </li>
-          <li class="gen-step" data-step="transform">
-            <span class="gs-dot"></span>
-            <span class="gs-label">Transformation</span>
-            <span class="gs-detail" id="gsTransform"></span>
-          </li>
-          <li class="gen-step" data-step="done">
-            <span class="gs-dot"></span>
-            <span class="gs-label">Terminé</span>
-          </li>
-        </ul>
+        <!-- Vue 2 : progression -->
+        <div class="gen-view" id="genView2" hidden>
+          <ul class="gen-steps" id="genSteps">
+            <li class="gen-step" data-step="download">
+              <span class="gs-dot"></span>
+              <span class="gs-label">Téléchargement</span>
+              <span class="gs-detail" id="gsDownload"></span>
+            </li>
+            <li class="gen-step" data-step="transform">
+              <span class="gs-dot"></span>
+              <span class="gs-label">Transformation</span>
+              <span class="gs-detail" id="gsTransform"></span>
+            </li>
+            <li class="gen-step" data-step="done">
+              <span class="gs-dot"></span>
+              <span class="gs-label">Terminé</span>
+            </li>
+          </ul>
 
-        <div class="gen-error" id="genError" hidden></div>
+          <pre class="gen-log" id="genLog" aria-live="polite"></pre>
+
+          <div class="gen-error" id="genError" hidden></div>
+        </div>
       </div>
       <div class="modal-actions">
-        <button class="btn modal-primary" id="genDbStart">Générer la base</button>
+        <button class="btn" id="genDbBack" hidden>Retour</button>
+        <button class="btn modal-primary" id="genDbNext">Suivant</button>
+        <button class="btn modal-primary" id="genDbStart" hidden>Générer la base</button>
         <button class="btn" id="genDbCancel">Fermer</button>
       </div>
     </div>

@@ -71,22 +71,27 @@ async function parquetColumns(conn, file) {
   return res.toArray().map((r) => String(r.toJSON().column_name));
 }
 
-// Generate the database in the browser and persist it to IndexedDB.
-// opts.onProgress({phase}) reports 'download' (per file) → 'transform' → 'done'.
+// Generate the database in the browser and persist it to OPFS.
+// opts.onProgress({phase}) reports 'download' (per file) → 'transform' → 'done',
+// plus human-readable {phase:'log', message} events for the dialog's log console.
 // opts.freqFile (optional File/ArrayBuffer): a parquet with columns
 // `terminologie; code; freq` whose values populate the `freq` column.
 export async function generateDatabase({ onProgress = () => {}, freqFile } = {}) {
+  const log = (message) => onProgress({ phase: "log", message });
+
   // 1. Download the source parquets (with progress).
   const parquets = {};
   for (const t of TERMINOLOGIES) {
     parquets[t.name] = await downloadParquet(t, onProgress);
   }
+  log(`${TERMINOLOGIES.length} terminologies téléchargées (${TERMINOLOGIES.map((t) => t.name).join(", ")}).`);
   const freqBytes = freqFile
     ? new Uint8Array(freqFile instanceof ArrayBuffer ? freqFile : await freqFile.arrayBuffer())
     : null;
 
   // 2. Build (port of build_db.py) directly into the OPFS-backed database.
   onProgress({ phase: "transform" });
+  log("Construction de la base dans le navigateur…");
   await clearStoredDb(); // start from a clean file (idempotent rebuilds)
   const db = await bootDuckDB();
   await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
@@ -143,12 +148,16 @@ export async function generateDatabase({ onProgress = () => {}, freqFile } = {})
         `PRAGMA create_fts_index('${t.name}', 'id', 'keywords', ` +
           "stemmer='french', stopwords='none', overwrite=1)",
       );
+
+      const cnt = (await conn.query(`SELECT count(*) AS n FROM ${t.name}`)).toArray()[0].toJSON().n;
+      log(`• ${t.name} : ${Number(cnt).toLocaleString("fr-FR")} concepts, index FTS créé.`);
     }
 
     // 3. Optional frequencies: a parquet `terminologie; code; freq` fills `freq`.
     // Rows without a match keep 0.0; matching by code updates every row sharing
     // that code (consistent with adicap, where code is not unique).
     if (freqBytes) {
+      log("Application des fréquences personnalisées…");
       await db.registerFileBuffer("freq.parquet", freqBytes);
       const cols = await parquetColumns(conn, "freq.parquet");
       const missing = ["terminologie", "code", "freq"].filter((c) => !cols.includes(c));
@@ -165,6 +174,7 @@ export async function generateDatabase({ onProgress = () => {}, freqFile } = {})
     }
 
     // Merge the WAL into the main OPFS file so a read-only reopen sees everything.
+    log("Finalisation (checkpoint)…");
     await conn.query("CHECKPOINT");
     setStoredVersion(DB_VERSION);
     onProgress({ phase: "done" });

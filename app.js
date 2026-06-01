@@ -564,10 +564,27 @@ function renderDownloadProgress(pct) {
     .join(" · ");
 }
 
+// Two-step dialog: 1 = options (intro + frequencies), 2 = progress (steps + log).
+function showGenView(n) {
+  $("#genView1").hidden = n !== 1;
+  $("#genView2").hidden = n !== 2;
+  $("#genDbNext").hidden = n !== 1;
+  $("#genDbBack").hidden = n !== 2;
+  $("#genDbStart").hidden = n !== 2;
+}
+
+function logLine(msg) {
+  const log = $("#genLog");
+  log.textContent += (log.textContent ? "\n" : "") + msg;
+  log.scrollTop = log.scrollHeight;
+}
+
 function openGenDb() {
   $("#genError").hidden = true;
   resetSteps();
+  $("#genLog").textContent = "";
   $("#genDbStart").disabled = false;
+  showGenView(1);
   $("#genDbOverlay").hidden = false;
 }
 function closeGenDb() {
@@ -579,20 +596,30 @@ async function runGenDb() {
   startBtn.disabled = true;
   $("#genError").hidden = true;
   resetSteps();
+  $("#genLog").textContent = "";
   setStep("download", "active");
+  logLine("Démarrage de la génération…");
 
   const pct = {};
+  const done = {};
   const onProgress = (p) => {
     if (p.phase === "download") {
       pct[p.file] = p.total ? Math.round((100 * p.loaded) / p.total) : 0;
       $("#gsDownload").textContent = renderDownloadProgress(pct);
+      if (p.total && p.loaded >= p.total && !done[p.file]) {
+        done[p.file] = true;
+        logLine(`✓ ${p.file} téléchargé (${(p.total / 1024 / 1024).toFixed(1)} Mo)`);
+      }
     } else if (p.phase === "transform") {
       setStep("download", "done");
       setStep("transform", "active");
       $("#gsTransform").textContent = "construction + index…";
+    } else if (p.phase === "log") {
+      logLine(p.message);
     } else if (p.phase === "done") {
       setStep("transform", "done");
       setStep("done", "done");
+      logLine("✓ Base prête.");
     }
   };
 
@@ -602,11 +629,12 @@ async function runGenDb() {
     await db.reset(); // release any read-only OPFS handle (regeneration) — exclusive access
     await db.clearStoredDb(); // remove the old file before rebuilding
     await generateDatabase({ onProgress, freqFile });
-    await loadDatabase(); // re-open the freshly built DB read-only
-    setTimeout(closeGenDb, 700);
+    await loadDatabase(); // re-open the freshly built DB read-only (app ready behind the modal)
+    // Leave the dialog open so the log stays readable; the user closes it via "Fermer".
   } catch (e) {
     console.error(e);
     setStepError();
+    logLine("✗ Erreur : " + e.message);
     $("#genError").textContent = "Erreur : " + e.message;
     $("#genError").hidden = false;
   } finally {
@@ -621,6 +649,8 @@ function initGenDb() {
   $("#genDbCancel").addEventListener("click", closeGenDb);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeGenDb(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !overlay.hidden) closeGenDb(); });
+  $("#genDbNext").addEventListener("click", () => showGenView(2));
+  $("#genDbBack").addEventListener("click", () => showGenView(1));
   $("#genDbStart").addEventListener("click", runGenDb);
 }
 
