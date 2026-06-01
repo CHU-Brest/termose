@@ -397,13 +397,10 @@ function initSearch() {
     clear.classList.toggle("show", q.length > 0);
     if (!q) { clearResults(); await loadTree(); return; } // empty: prompt + full browse tree
     try {
-      // One query feeds the flat Résultats list, the other the filtered Hiérarchie.
-      const [list, treeNodes] = await Promise.all([
-        db.search(state.term, q),
-        db.searchTree(state.term, q),
-      ]);
+      // One matched set feeds both the flat Résultats list and the filtered Hiérarchie.
+      const { list, tree } = await db.searchBoth(state.term, q);
       renderResults(list, q);
-      renderFilteredTree(treeNodes);
+      renderFilteredTree(tree);
     } catch (e) {
       console.error(e);
       const err = `<div class="empty-state"><p>Erreur : ${esc(e.message)}</p></div>`;

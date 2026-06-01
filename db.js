@@ -116,12 +116,26 @@ function prefixConds(query) {
   return { clause: conds.join(" AND "), params };
 }
 
-export async function search(table, query) {
-  assertTable(table);
+const FUZZY_THRESHOLD = 0.88; // jaro-winkler floor for a token typo to count as a match
+const FUZZY_MIN_HITS = 5; // run the fuzzy fallback only when the exact pass is this sparse
+
+// Query words eligible for fuzzy matching: alphabetic and >= 4 chars. Codes (digits)
+// and short words are excluded — the exact/prefix pass handles them well, and fuzzing
+// them is noisy (e.g. "I33" ~ "I44").
+function fuzzyWords(query) {
+  return normQuery((query || "").trim())
+    .split(/\s+/)
+    .filter((w) => w.length >= 4 && /^[a-z]+$/.test(w));
+}
+
+// Matched concepts for a query. Fast path: the exact/prefix pass (BM25-ranked).
+// Fallback (only when that pass is sparse): a per-token jaro-winkler pass catches
+// typos. Returns display-column rows — the exact block keeps its order, fuzzy-only
+// hits append after it.
+async function matchedRows(table, query) {
   const pc = prefixConds(query);
   if (!pc) return [];
-  // BM25 score (whole-word) is kept only to rank exact-term hits above prefix-only hits.
-  return rows(
+  const exact = await rows(
     `SELECT id, code, label, depth, lft, rgt, path, freq,
             fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
      FROM ${table}
@@ -130,29 +144,58 @@ export async function search(table, query) {
      LIMIT 300`,
     [query.trim(), ...pc.params],
   );
+  if (exact.length >= FUZZY_MIN_HITS) return exact;
+
+  const words = fuzzyWords(query);
+  if (!words.length) return exact;
+
+  // One jaro-winkler similarity per query word (best-matching token), computed once
+  // per row in the CTE, then filtered/scored — avoids recomputing in WHERE + ORDER.
+  const sims = words.map(
+    (_, i) =>
+      `list_aggregate(list_transform(string_split(keywords, ' '), ` +
+      `t -> jaro_winkler_similarity(t, ?)), 'max') AS s${i}`,
+  );
+  const where = words.map((_, i) => `s${i} >= ${FUZZY_THRESHOLD}`).join(" AND ");
+  const score = words.map((_, i) => `s${i}`).join(" + ");
+  const fuzzy = await rows(
+    `WITH s AS (
+       SELECT id, code, label, depth, lft, rgt, path, freq, ${sims.join(", ")}
+       FROM ${table}
+     )
+     SELECT id, code, label, depth, lft, rgt, path, freq, (${score}) AS score
+     FROM s
+     WHERE ${where}
+     ORDER BY score DESC, freq DESC, length(label), code
+     LIMIT 300`,
+    words,
+  );
+  const seen = new Set(exact.map((r) => r.id));
+  return exact.concat(fuzzy.filter((r) => !seen.has(r.id))).slice(0, 300);
 }
 
-// Pruned set for the Hierarchy tab in search mode: every node that is an
-// ancestor-or-self of a match. `is_match` flags the matched concepts themselves.
-// Ordered by lft (pre-order) so the flat rows can be rebuilt into a tree.
-export async function searchTree(table, query) {
+// Single entry point for search mode: the flat result list AND the pruned
+// ancestor-or-self tree, derived from ONE matched set so the two views stay
+// consistent (and the fuzzy fallback is never computed twice). `is_match` flags the
+// matched concepts; tree rows are lft-ordered (pre-order) for rebuilding into a tree.
+export async function searchBoth(table, query) {
   assertTable(table);
-  const pc = prefixConds(query);
-  if (!pc) return [];
-  return rows(
-    `WITH matched AS (
-       SELECT id, lft, rgt FROM ${table}
-       WHERE ${pc.clause}
-       ORDER BY fts_main_${table}.match_bm25(id, ?, conjunctive := 1) DESC NULLS LAST, freq DESC
-       LIMIT 300
-     )
-     SELECT t.id, t.code, t.label, t.depth, t.lft, t.rgt, t.path, t.freq,
-            (t.id IN (SELECT id FROM matched)) AS is_match
+  const matched = await matchedRows(table, query);
+  if (!matched.length) return { list: [], tree: [] };
+
+  const ids = new Set(matched.map((r) => r.id));
+  const pairs = matched.map(() => "(CAST(? AS BIGINT), CAST(? AS BIGINT))").join(", ");
+  const params = matched.flatMap((r) => [r.lft, r.rgt]);
+  const tree = await rows(
+    `WITH m(lft, rgt) AS (VALUES ${pairs})
+     SELECT t.id, t.code, t.label, t.depth, t.lft, t.rgt, t.path, t.freq
      FROM ${table} t
-     WHERE EXISTS (SELECT 1 FROM matched m WHERE t.lft <= m.lft AND t.rgt >= m.rgt)
+     WHERE EXISTS (SELECT 1 FROM m WHERE t.lft <= m.lft AND t.rgt >= m.rgt)
      ORDER BY t.lft`,
-    [...pc.params, query.trim()],
+    params,
   );
+  tree.forEach((n) => { n.is_match = ids.has(n.id); });
+  return { list: matched, tree };
 }
 
 // Full row (all columns) for the concept panel; keyed by the integer id. null if missing.
