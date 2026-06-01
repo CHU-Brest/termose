@@ -653,6 +653,15 @@ function initGenDb() {
   $("#genDbNext").addEventListener("click", () => showGenView(2));
   $("#genDbBack").addEventListener("click", () => showGenView(1));
   $("#genDbStart").addEventListener("click", runGenDb);
+  $("#freqFile").addEventListener("change", updateFreqName);
+}
+
+// Reflect the chosen frequencies file next to the custom "Choisir un fichier" button.
+function updateFreqName() {
+  const f = $("#freqFile").files[0];
+  const el = $("#freqName");
+  el.textContent = f ? f.name : "Aucun fichier";
+  el.classList.toggle("has-file", !!f);
 }
 
 // Shown when no database has been generated yet (DB_MISSING): invite the user to
