@@ -540,19 +540,105 @@ async function selectConcept(id) {
   }
 }
 
+// ============================================== generate-database modal
+// Step status helpers: each <li data-step> gets pending / active / done / error.
+function setStep(step, status) {
+  const li = document.querySelector(`#genSteps .gen-step[data-step="${step}"]`);
+  if (li) li.className = "gen-step" + (status ? " " + status : "");
+}
+function resetSteps() {
+  ["download", "transform", "done"].forEach((s) => setStep(s, ""));
+  $("#gsDownload").textContent = "";
+  $("#gsTransform").textContent = "";
+}
+function setStepError() {
+  // Mark whichever step is currently active as failed.
+  const active = document.querySelector("#genSteps .gen-step.active");
+  if (active) active.classList.replace("active", "error");
+}
+
+const TERM_LABELS = ["cim10", "ccam", "adicap"]; // display order in the download line
+function renderDownloadProgress(pct) {
+  return TERM_LABELS
+    .map((n) => `${n} ${n in pct ? pct[n] + "%" : "—"}`)
+    .join(" · ");
+}
+
+function openGenDb() {
+  $("#genError").hidden = true;
+  resetSteps();
+  $("#genDbStart").disabled = false;
+  $("#genDbOverlay").hidden = false;
+}
+function closeGenDb() {
+  $("#genDbOverlay").hidden = true;
+}
+
+async function runGenDb() {
+  const startBtn = $("#genDbStart");
+  startBtn.disabled = true;
+  $("#genError").hidden = true;
+  resetSteps();
+  setStep("download", "active");
+
+  const pct = {};
+  const onProgress = (p) => {
+    if (p.phase === "download") {
+      pct[p.file] = p.total ? Math.round((100 * p.loaded) / p.total) : 0;
+      $("#gsDownload").textContent = renderDownloadProgress(pct);
+    } else if (p.phase === "transform") {
+      setStep("download", "done");
+      setStep("transform", "active");
+      $("#gsTransform").textContent = "construction + index…";
+    } else if (p.phase === "done") {
+      setStep("transform", "done");
+      setStep("done", "done");
+    }
+  };
+
+  try {
+    const { generateDatabase } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
+    const freqFile = $("#freqFile").files[0] || undefined;
+    await db.reset(); // release any read-only OPFS handle (regeneration) — exclusive access
+    await db.clearStoredDb(); // remove the old file before rebuilding
+    await generateDatabase({ onProgress, freqFile });
+    await loadDatabase(); // re-open the freshly built DB read-only
+    setTimeout(closeGenDb, 700);
+  } catch (e) {
+    console.error(e);
+    setStepError();
+    $("#genError").textContent = "Erreur : " + e.message;
+    $("#genError").hidden = false;
+  } finally {
+    startBtn.disabled = false;
+  }
+}
+
+function initGenDb() {
+  const overlay = $("#genDbOverlay");
+  $("#genDbBtn").addEventListener("click", openGenDb);
+  $("#genDbClose").addEventListener("click", closeGenDb);
+  $("#genDbCancel").addEventListener("click", closeGenDb);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeGenDb(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !overlay.hidden) closeGenDb(); });
+  $("#genDbStart").addEventListener("click", runGenDb);
+}
+
+// Shown when no database has been generated yet (DB_MISSING): invite the user to
+// build it, and open the modal so the primary action is one click away.
+function showDbMissing() {
+  $("#tree").innerHTML =
+    `<div class="empty-state">
+       <p><b>Base non générée</b></p>
+       <p>Générez la base pour télécharger les terminologies et la construire dans votre navigateur.</p>
+       <p><button class="btn" id="genDbInline" style="border:1px solid var(--border)">Générer la base</button></p>
+     </div>`;
+  $("#genDbInline")?.addEventListener("click", openGenDb);
+  openGenDb();
+}
+
 // ====================================================================== BOOT
-async function boot() {
-  initTheme();
-  initSplitters();
-  initShortcuts();
-  initTabs();
-  initCart();
-  setTab("tree");
-  initSearch();
-  $("#collapseBtn").addEventListener("click", () => {
-    document.querySelectorAll("#tree .kids.open").forEach((k) => k.classList.remove("open"));
-    document.querySelectorAll("#tree .twisty.open").forEach((t) => t.classList.remove("open"));
-  });
+async function loadDatabase() {
   try {
     showBootSpinner();
     await db.init();
@@ -567,9 +653,26 @@ async function boot() {
     await loadTree();
     document.body.dataset.ready = "1"; // signal for headless UI harness
   } catch (e) {
+    if (e && e.code === "DB_MISSING") { showDbMissing(); return; }
     console.error(e);
     fatal("Impossible de charger la base de données.", e.message);
   }
+}
+
+async function boot() {
+  initTheme();
+  initSplitters();
+  initShortcuts();
+  initTabs();
+  initCart();
+  initGenDb();
+  setTab("tree");
+  initSearch();
+  $("#collapseBtn").addEventListener("click", () => {
+    document.querySelectorAll("#tree .kids.open").forEach((k) => k.classList.remove("open"));
+    document.querySelectorAll("#tree .twisty.open").forEach((t) => t.classList.remove("open"));
+  });
+  await loadDatabase();
 }
 
 boot();

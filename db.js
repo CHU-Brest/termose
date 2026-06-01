@@ -1,15 +1,21 @@
 // db.js — DuckDB-WASM data layer. DOM-free. Only file that contains SQL.
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";
+import { DB_PATH, dbExists, clearStoredDb, getStoredVersion } from "./storage.js";
 
-const DB_FILE = "termose.duckdb";
-const DB_URL = "database/termose.duckdb";
+// On the `license` branch the DB is not shipped: it is built in the browser
+// (build.js) and persisted in OPFS (storage.js). Re-exported so the view layer
+// can offer a "regenerate" action without importing storage.js directly.
+export { clearStoredDb, getStoredVersion };
 
 let _conn = null; // DuckDB-WASM connection, set by init()
+let _db = null; // owning AsyncDuckDB (kept so reset() can release the OPFS handle)
 
 // Validated lazily from meta; guards table-name interpolation in SQL.
 let _tables = null;
 
-async function bootConnection() {
+// Boot a DuckDB-WASM instance (worker + module). Stateless and shared with
+// build.js, which needs the same runtime to construct the database.
+export async function bootDuckDB() {
   const bundles = duckdb.getJsDelivrBundles();
   const bundle = await duckdb.selectBundle(bundles); // picks a COOP/COEP-free bundle when needed
   const workerUrl = URL.createObjectURL(
@@ -19,22 +25,24 @@ async function bootConnection() {
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   URL.revokeObjectURL(workerUrl);
+  return db;
+}
 
-  // `no-cache` = always revalidate with the server (conditional GET): a 304 when
-  // the DB is unchanged (no re-download of the ~14 MB file), a fresh download when
-  // it changed. Prevents a stale cached DB from mismatching db.js's schema.
-  const res = await fetch(DB_URL, { cache: "no-cache" });
-  if (!res.ok) throw new Error(`Téléchargement de ${DB_URL} échoué (HTTP ${res.status})`);
-  const buf = new Uint8Array(await res.arrayBuffer());
-  await db.registerFileBuffer(DB_FILE, buf);
+async function bootConnection() {
+  // The DB lives in OPFS (built once via build.js). When absent we throw a typed
+  // error so the view layer can prompt the user to generate it.
+  if (!(await dbExists())) {
+    throw Object.assign(new Error("Base non générée"), { code: "DB_MISSING" });
+  }
 
-  // Open the prebuilt DB as the MAIN catalog (read-only) rather than ATTACHing
-  // it: the persisted match_bm25 macro calls its sibling FTS helpers (tokenize,
-  // stem) unqualified, which only resolve when fts_main_<table> lives in the
-  // main catalog. Under an attached catalog those calls fail.
-  await db.open({ path: DB_FILE, accessMode: duckdb.DuckDBAccessMode.READ_ONLY });
+  const db = await bootDuckDB();
+  // Open the OPFS-backed DB as the MAIN catalog (read-only). The persisted
+  // match_bm25 macro calls its sibling FTS helpers (tokenize, stem) unqualified,
+  // which only resolve when fts_main_<table> lives in the main catalog.
+  await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_ONLY });
   const conn = await db.connect();
   await conn.query("LOAD fts");
+  _db = db;
   return conn;
 }
 
@@ -64,6 +72,18 @@ async function rows(sql, params) {
 export async function init() {
   if (_conn) return;
   _conn = await bootConnection();
+}
+
+// Tear down the current connection AND its worker so the OPFS file handle is
+// released. Must be awaited before (re)building, since OPFS access is exclusive;
+// the next init() then re-opens the freshly built DB.
+export async function reset() {
+  _conn = null;
+  _tables = null;
+  if (_db) {
+    try { await _db.terminate(); } catch { /* already gone */ }
+    _db = null;
+  }
 }
 
 export async function listTerminologies() {

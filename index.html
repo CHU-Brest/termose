@@ -511,6 +511,59 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .foot-attrib { color: var(--text-2); }
 .appfoot a { color: var(--text-2); text-decoration: none; border-bottom: 1px solid var(--border-strong); }
 .appfoot a:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---- generate-database modal ---- */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: color-mix(in srgb, #000 45%, transparent);
+  display: grid; place-items: center; padding: 20px;
+  backdrop-filter: blur(2px);
+}
+.modal-overlay[hidden] { display: none; }
+.modal {
+  width: min(480px, 100%); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column;
+  max-height: 90vh; overflow: hidden;
+}
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.modal-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.1px; }
+.modal-close { margin-left: auto; border: 0; background: transparent; color: var(--text-3); cursor: pointer; border-radius: 7px; width: 28px; height: 28px; display: grid; place-items: center; }
+.modal-close:hover { background: var(--hover); color: var(--text); }
+.modal-close svg { width: 16px; height: 16px; }
+.modal-body { padding: 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
+.modal-intro { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-2); }
+.modal-intro a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+
+.freq-field { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--panel-2); }
+.freq-field .ff-label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.freq-field .ff-label em { font-style: normal; font-weight: 500; color: var(--text-3); }
+.freq-field input[type="file"] { font: inherit; font-size: 12px; color: var(--text-2); }
+.freq-field small { font-size: 11.5px; color: var(--text-3); }
+.freq-field code { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
+
+.gen-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gen-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-3); }
+.gen-step .gs-dot { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); transition: all .15s; position: relative; }
+.gen-step .gs-label { font-weight: 600; }
+.gen-step .gs-detail { margin-left: auto; font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
+.gen-step.active { color: var(--text); }
+.gen-step.active .gs-dot { border-color: var(--accent); border-right-color: transparent; animation: gs-spin .7s linear infinite; }
+.gen-step.done { color: var(--text); }
+.gen-step.done .gs-dot { border-color: var(--accent); background: var(--accent); }
+.gen-step.done .gs-dot::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.gen-step.error .gs-dot { border-color: #c0392b; background: #c0392b; }
+@keyframes gs-spin { to { transform: rotate(360deg); } }
+
+.gen-error { font-size: 12.5px; color: #c0392b; background: color-mix(in srgb, #c0392b 8%, transparent); border: 1px solid color-mix(in srgb, #c0392b 30%, transparent); border-radius: 8px; padding: 8px 10px; }
+html[data-theme="dark"] .gen-error { color: #f1948a; }
+.gen-error[hidden] { display: none; }
+
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid var(--border); }
+.modal-actions .btn { border: 1px solid var(--border); padding: 8px 16px; font-size: 13px; border-radius: 9px; }
+.modal-actions .modal-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.modal-actions .modal-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); color: var(--accent-ink); }
+.modal-actions .modal-primary:disabled { opacity: .55; cursor: default; }
 </style>
 </head>
 <body>
@@ -545,6 +598,10 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
         </div>
       </div>
     </div>
+
+    <button class="icon-btn" id="genDbBtn" title="Générer la base de données" aria-label="Générer la base de données">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
+    </button>
 
     <button class="icon-btn" id="themeBtn" title="Basculer clair / sombre" aria-label="Basculer le thème">
       <svg class="ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
@@ -612,6 +669,53 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
       de l'Agence du Numérique en Santé.</span>
     <span class="foot-attrib" id="footAttrib"></span>
   </footer>
+
+  <!-- ============== GÉNÉRATION DE LA BASE (modal) ============== -->
+  <div class="modal-overlay" id="genDbOverlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="genDbTitle">
+      <div class="modal-head">
+        <h2 id="genDbTitle">Générer la base de données</h2>
+        <button class="modal-close" id="genDbClose" aria-label="Fermer" title="Fermer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">Les terminologies sont téléchargées depuis
+          <a href="https://www.data.gouv.fr/datasets/terminologie-medicale-au-format-parquet" target="_blank" rel="noopener">data.gouv.fr</a>,
+          puis la base est construite et stockée dans votre navigateur. L'opération
+          n'est nécessaire qu'une seule fois.</p>
+
+        <label class="freq-field">
+          <span class="ff-label">Fichier de fréquences <em>(optionnel)</em></span>
+          <input type="file" id="freqFile" accept=".parquet" />
+          <small>Parquet avec les colonnes : <code>terminologie</code> ; <code>code</code> ; <code>freq</code></small>
+        </label>
+
+        <ul class="gen-steps" id="genSteps">
+          <li class="gen-step" data-step="download">
+            <span class="gs-dot"></span>
+            <span class="gs-label">Téléchargement</span>
+            <span class="gs-detail" id="gsDownload"></span>
+          </li>
+          <li class="gen-step" data-step="transform">
+            <span class="gs-dot"></span>
+            <span class="gs-label">Transformation</span>
+            <span class="gs-detail" id="gsTransform"></span>
+          </li>
+          <li class="gen-step" data-step="done">
+            <span class="gs-dot"></span>
+            <span class="gs-label">Terminé</span>
+          </li>
+        </ul>
+
+        <div class="gen-error" id="genError" hidden></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn modal-primary" id="genDbStart">Générer la base</button>
+        <button class="btn" id="genDbCancel">Fermer</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Cache-bust app.js (and, via it, db.js) so updates never load a stale mix. -->

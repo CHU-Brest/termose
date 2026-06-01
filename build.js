@@ -1,0 +1,176 @@
+// build.js — client-side generation of the DuckDB database.
+//
+// For licensing reasons the database (a derivative of licensed terminologies) is
+// not shipped. Instead it is built in the browser from the official parquets
+// published on data.gouv.fr, then persisted in IndexedDB (storage.js) so it is
+// only generated once. This is a 1:1 port of database/build_db.py onto the
+// DuckDB-WASM runtime already used by db.js (no Python / PyScript).
+import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";
+import { bootDuckDB } from "./db.js";
+import { DB_PATH, clearStoredDb, setStoredVersion } from "./storage.js";
+
+// Stable data.gouv permalinks (the timestamped static.data.gouv.fr URLs rotate on
+// every update; these /datasets/r/<id> permalinks 302-redirect to the latest and
+// carry CORS, including on the redirect). ATC is absent from the dataset, so the
+// license build covers cim10 / ccam / adicap only.
+const TERMINOLOGIES = [
+  { name: "cim10", version: "2025-01-01", url: "https://www.data.gouv.fr/api/1/datasets/r/f0163d08-c682-4920-9409-363bca1415fe" },
+  { name: "ccam", version: "v82.00", url: "https://www.data.gouv.fr/api/1/datasets/r/3da4b518-3791-4ee5-a397-5017669ca95a" },
+  { name: "adicap", version: "2024-10", url: "https://www.data.gouv.fr/api/1/datasets/r/848d3868-e0ff-4c46-b9bf-2fcbe261348f" },
+];
+
+// Fingerprint stored alongside the DB so a future data.gouv update can be detected.
+const DB_VERSION = TERMINOLOGIES.map((t) => `${t.name}@${t.version}`).join("|");
+
+const NAME_RE = /^[a-z][a-z0-9_]*$/; // guards table-name interpolation (cf. build_db.py)
+
+// Fetch a parquet, streaming progress via onProgress({phase:'download', ...}).
+async function downloadParquet(t, onProgress) {
+  const res = await fetch(t.url);
+  if (!res.ok) throw new Error(`Téléchargement de ${t.name} échoué (HTTP ${res.status})`);
+  const total = Number(res.headers.get("Content-Length")) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onProgress({ phase: "download", file: t.name, loaded, total });
+  }
+  const bytes = new Uint8Array(loaded);
+  let off = 0;
+  for (const c of chunks) {
+    bytes.set(c, off);
+    off += c.length;
+  }
+  return bytes;
+}
+
+// KV metadata of a parquet → {source, url, license, ...}. Values come back as
+// BLOBs (Uint8Array), so decode them like build_db.py:parquet_meta does.
+async function parquetKv(conn, file) {
+  const stmt = await conn.prepare("SELECT key, value FROM parquet_kv_metadata(?)");
+  const res = await stmt.query(file);
+  await stmt.close();
+  const dec = new TextDecoder();
+  const out = {};
+  for (const row of res.toArray()) {
+    const o = row.toJSON();
+    const k = o.key instanceof Uint8Array ? dec.decode(o.key) : String(o.key);
+    const v = o.value instanceof Uint8Array ? dec.decode(o.value) : o.value == null ? "" : String(o.value);
+    out[k] = v;
+  }
+  return out;
+}
+
+// Column names of a parquet (via DESCRIBE — avoids parquet_schema's nested rows).
+async function parquetColumns(conn, file) {
+  const res = await conn.query(`DESCRIBE SELECT * FROM read_parquet('${file}')`);
+  return res.toArray().map((r) => String(r.toJSON().column_name));
+}
+
+// Generate the database in the browser and persist it to IndexedDB.
+// opts.onProgress({phase}) reports 'download' (per file) → 'transform' → 'done'.
+// opts.freqFile (optional File/ArrayBuffer): a parquet with columns
+// `terminologie; code; freq` whose values populate the `freq` column.
+export async function generateDatabase({ onProgress = () => {}, freqFile } = {}) {
+  // 1. Download the source parquets (with progress).
+  const parquets = {};
+  for (const t of TERMINOLOGIES) {
+    parquets[t.name] = await downloadParquet(t, onProgress);
+  }
+  const freqBytes = freqFile
+    ? new Uint8Array(freqFile instanceof ArrayBuffer ? freqFile : await freqFile.arrayBuffer())
+    : null;
+
+  // 2. Build (port of build_db.py) directly into the OPFS-backed database.
+  onProgress({ phase: "transform" });
+  await clearStoredDb(); // start from a clean file (idempotent rebuilds)
+  const db = await bootDuckDB();
+  await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
+  const conn = await db.connect();
+  try {
+    // FTS (BM25) lives on the normalised `keywords` column; the index is persisted
+    // inside the file so the browser only runs read-only match_bm25 against it.
+    await conn.query("INSTALL fts; LOAD fts;");
+
+    await conn.query(
+      "CREATE OR REPLACE TABLE meta (" +
+        "table_name VARCHAR, source_file VARCHAR, version VARCHAR, " +
+        "source VARCHAR, url VARCHAR, license VARCHAR)",
+    );
+
+    for (const t of TERMINOLOGIES) {
+      if (!NAME_RE.test(t.name)) throw new Error(`Nom de table invalide: ${t.name}`);
+      const file = `${t.name}.parquet`;
+      await db.registerFileBuffer(file, parquets[t.name]);
+
+      // Surrogate integer PK: `code` is NOT unique in adicap, so a stable per-table
+      // `id` is the concept identifier everywhere; `code` is display-only.
+      await conn.query(
+        `CREATE OR REPLACE TABLE ${t.name} AS ` +
+          "SELECT CAST(row_number() OVER () AS BIGINT) AS id, *, " +
+          `CAST(0.0 AS DOUBLE) AS freq FROM read_parquet('${file}')`,
+      );
+      await conn.query(`ALTER TABLE ${t.name} ADD PRIMARY KEY (id)`);
+
+      // PATCH (en attendant smt2parquet): les libellés CCAM sont préfixés par
+      // leur code (ex. "01.01 ACTES …"). On retire ce préfixe.
+      if (t.name === "ccam") {
+        await conn.query(
+          `UPDATE ${t.name} SET label = trim(substr(label, length(code) + 2)) ` +
+            "WHERE starts_with(label, code || ' ')",
+        );
+      }
+
+      const kv = await parquetKv(conn, file);
+      const ins = await conn.prepare("INSERT INTO meta VALUES (?, ?, ?, ?, ?, ?)");
+      await ins.query(
+        t.name,
+        `${t.name}-${t.version}.parquet`,
+        t.version,
+        kv.source || "",
+        kv.url || "",
+        kv.license || "",
+      );
+      await ins.close();
+
+      // keywords is already lowercased/accent-stripped; the French stemmer keeps
+      // query and index consistent. overwrite=1 makes rebuilds idempotent.
+      await conn.query(
+        `PRAGMA create_fts_index('${t.name}', 'id', 'keywords', ` +
+          "stemmer='french', stopwords='none', overwrite=1)",
+      );
+    }
+
+    // 3. Optional frequencies: a parquet `terminologie; code; freq` fills `freq`.
+    // Rows without a match keep 0.0; matching by code updates every row sharing
+    // that code (consistent with adicap, where code is not unique).
+    if (freqBytes) {
+      await db.registerFileBuffer("freq.parquet", freqBytes);
+      const cols = await parquetColumns(conn, "freq.parquet");
+      const missing = ["terminologie", "code", "freq"].filter((c) => !cols.includes(c));
+      if (missing.length) {
+        throw new Error(`Fichier de fréquences invalide : colonnes manquantes (${missing.join(", ")})`);
+      }
+      for (const t of TERMINOLOGIES) {
+        await conn.query(
+          `UPDATE ${t.name} AS x SET freq = f.freq ` +
+            "FROM read_parquet('freq.parquet') f " +
+            `WHERE f.terminologie = '${t.name}' AND f.code = x.code`,
+        );
+      }
+    }
+
+    // Merge the WAL into the main OPFS file so a read-only reopen sees everything.
+    await conn.query("CHECKPOINT");
+    setStoredVersion(DB_VERSION);
+    onProgress({ phase: "done" });
+  } finally {
+    // Release the exclusive OPFS handle so db.js can reopen the file read-only.
+    await conn.close();
+    await db.terminate();
+  }
+}

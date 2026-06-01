@@ -8,3 +8,9 @@ node_modules/
 package.json
 package-lock.json
 tools/
+
+# Licence branch: the DB and source parquets are NOT redistributed. The DB is
+# generated client-side from data.gouv.fr (build.js) and persisted in IndexedDB.
+# Local copies may sit here for dev/tests but must not be committed/served.
+database/*.duckdb
+database/*.parquet
