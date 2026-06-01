@@ -566,6 +566,15 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .freq-field code { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
 
 .gen-view[hidden] { display: none; }
+.license-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.license-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+.license-item .lic-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.license-item .lic-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.license-item .lic-ver { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+.license-item .lic-row { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+.license-item .lic-row .k { color: var(--text-3); }
+.license-item a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.license-item a:hover { border-color: var(--accent); }
 .gen-log {
   margin: 14px 0 0; padding: 10px 12px; height: 150px; overflow: auto;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
@@ -734,8 +743,17 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
           </div>
         </div>
 
-        <!-- Vue 2 : progression -->
+        <!-- Vue 2 : licences -->
         <div class="gen-view" id="genView2" hidden>
+          <p class="modal-intro">La base est construite à partir des terminologies
+            ci-dessous, publiées par l'<a href="https://esante.gouv.fr/" target="_blank" rel="noopener">Agence du Numérique en Santé</a>.
+            Chacune est soumise à sa propre licence — merci d'en prendre connaissance
+            avant de continuer.</p>
+          <ul class="license-list" id="licenseList"></ul>
+        </div>
+
+        <!-- Vue 3 : progression -->
+        <div class="gen-view" id="genView3" hidden>
           <ul class="gen-steps" id="genSteps">
             <li class="gen-step" data-step="download">
               <span class="gs-dot"></span>
@@ -761,6 +779,7 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
       <div class="modal-actions">
         <button class="btn" id="genDbBack" hidden>Retour</button>
         <button class="btn modal-primary" id="genDbNext">Suivant</button>
+        <button class="btn modal-primary" id="genDbAccept" hidden>J'ai lu et j'accepte</button>
         <button class="btn modal-primary" id="genDbStart" hidden>Générer la base</button>
         <button class="btn" id="genDbCancel">Fermer</button>
       </div>

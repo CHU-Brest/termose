@@ -13,10 +13,29 @@ import { DB_PATH, clearStoredDb, setStoredVersion } from "./storage.js";
 // every update; these /datasets/r/<id> permalinks 302-redirect to the latest and
 // carry CORS, including on the redirect). ATC is absent from the dataset, so the
 // license build covers cim10 / ccam / adicap only.
-const TERMINOLOGIES = [
-  { name: "cim10", version: "2025-01-01", url: "https://www.data.gouv.fr/api/1/datasets/r/f0163d08-c682-4920-9409-363bca1415fe" },
-  { name: "ccam", version: "v82.00", url: "https://www.data.gouv.fr/api/1/datasets/r/3da4b518-3791-4ee5-a397-5017669ca95a" },
-  { name: "adicap", version: "2024-10", url: "https://www.data.gouv.fr/api/1/datasets/r/848d3868-e0ff-4c46-b9bf-2fcbe261348f" },
+// `url` is the data.gouv download permalink; `source`/`sourceUrl`/`license`
+// describe attribution and licensing (shown in the dialog's licence step before
+// the build, and re-read authoritatively from each parquet's KV metadata at
+// build time). Exported so app.js renders the licence view from the same source.
+export const TERMINOLOGIES = [
+  {
+    name: "cim10", version: "2025-01-01",
+    url: "https://www.data.gouv.fr/api/1/datasets/r/f0163d08-c682-4920-9409-363bca1415fe",
+    source: "CIM-10 FR PMSI", sourceUrl: "https://smt.esante.gouv.fr/terminologie-cim-10/",
+    license: "CC BY-NC-ND 3.0 IGO",
+  },
+  {
+    name: "ccam", version: "v82.00",
+    url: "https://www.data.gouv.fr/api/1/datasets/r/3da4b518-3791-4ee5-a397-5017669ca95a",
+    source: "CCAM", sourceUrl: "https://smt.esante.gouv.fr/terminologie-ccam/",
+    license: "LOv2",
+  },
+  {
+    name: "adicap", version: "2024-10",
+    url: "https://www.data.gouv.fr/api/1/datasets/r/848d3868-e0ff-4c46-b9bf-2fcbe261348f",
+    source: "ADICAP", sourceUrl: "https://smt.esante.gouv.fr/terminologie-adicap/",
+    license: "LOv2",
+  },
 ];
 
 // Fingerprint stored alongside the DB so a future data.gouv update can be detected.

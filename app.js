@@ -564,13 +564,40 @@ function renderDownloadProgress(pct) {
     .join(" · ");
 }
 
-// Two-step dialog: 1 = options (intro + frequencies), 2 = progress (steps + log).
+// Three-step dialog: 1 = options (intro + frequencies), 2 = licences, 3 = progress.
+let _genView = 1;
 function showGenView(n) {
+  _genView = n;
   $("#genView1").hidden = n !== 1;
   $("#genView2").hidden = n !== 2;
+  $("#genView3").hidden = n !== 3;
   $("#genDbNext").hidden = n !== 1;
-  $("#genDbBack").hidden = n !== 2;
-  $("#genDbStart").hidden = n !== 2;
+  $("#genDbAccept").hidden = n !== 2;
+  $("#genDbStart").hidden = n !== 3;
+  $("#genDbBack").hidden = n === 1;
+}
+
+// Render the licence view from build.js's TERMINOLOGIES (single source of truth);
+// the module is already cached via db.js, so this does not refetch duckdb.
+let _licensesRendered = false;
+async function renderLicenses() {
+  if (_licensesRendered) return;
+  const { TERMINOLOGIES } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
+  $("#licenseList").innerHTML = TERMINOLOGIES.map((t) => {
+    const deed = LICENSE_URLS[t.license];
+    const lic = deed
+      ? `<a href="${esc(deed)}" target="_blank" rel="noopener">${esc(t.license)}</a>`
+      : esc(t.license);
+    const src = t.sourceUrl
+      ? `<a href="${esc(t.sourceUrl)}" target="_blank" rel="noopener">${esc(t.source)}</a>`
+      : esc(t.source);
+    return `<li class="license-item">
+      <div class="lic-head"><span class="lic-name">${esc(t.name.toUpperCase())}</span><span class="lic-ver">${esc(t.version)}</span></div>
+      <div class="lic-row"><span class="k">Source :</span> ${src}</div>
+      <div class="lic-row"><span class="k">Licence :</span> ${lic}</div>
+    </li>`;
+  }).join("");
+  _licensesRendered = true;
 }
 
 function logLine(msg) {
@@ -650,8 +677,9 @@ function initGenDb() {
   $("#genDbCancel").addEventListener("click", closeGenDb);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeGenDb(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !overlay.hidden) closeGenDb(); });
-  $("#genDbNext").addEventListener("click", () => showGenView(2));
-  $("#genDbBack").addEventListener("click", () => showGenView(1));
+  $("#genDbNext").addEventListener("click", async () => { await renderLicenses(); showGenView(2); });
+  $("#genDbAccept").addEventListener("click", () => showGenView(3));
+  $("#genDbBack").addEventListener("click", () => showGenView(_genView - 1));
   $("#genDbStart").addEventListener("click", runGenDb);
   $("#freqFile").addEventListener("change", updateFreqName);
 }
