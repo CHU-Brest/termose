@@ -1,6 +1,6 @@
 // db.js — DuckDB-WASM data layer. DOM-free. Only file that contains SQL.
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";
-import { DB_PATH, dbExists, clearStoredDb, getStoredVersion } from "./storage.js";
+import { DB_FILE, dbExists, clearStoredDb, getStoredVersion } from "./storage.js";
 
 // On the `license` branch the DB is not shipped: it is built in the browser
 // (build.js) and persisted in OPFS (storage.js). Re-exported so the view layer
@@ -35,11 +35,20 @@ async function bootConnection() {
     throw Object.assign(new Error("Base non générée"), { code: "DB_MISSING" });
   }
 
+  // Read the OPFS file into a buffer via getFile() — a non-exclusive snapshot, so
+  // several tabs can read it at once. (Opening "opfs://…" directly would hold an
+  // exclusive SyncAccessHandle for the connection's lifetime, blocking other tabs
+  // and any later regeneration.) The build still writes via the opfs:// path.
+  const root = await navigator.storage.getDirectory();
+  const file = await (await root.getFileHandle(DB_FILE)).getFile();
+  const buf = new Uint8Array(await file.arrayBuffer());
+
   const db = await bootDuckDB();
-  // Open the OPFS-backed DB as the MAIN catalog (read-only). The persisted
-  // match_bm25 macro calls its sibling FTS helpers (tokenize, stem) unqualified,
-  // which only resolve when fts_main_<table> lives in the main catalog.
-  await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_ONLY });
+  await db.registerFileBuffer(DB_FILE, buf);
+  // Open the buffer as the MAIN catalog (read-only). The persisted match_bm25
+  // macro calls its sibling FTS helpers (tokenize, stem) unqualified, which only
+  // resolve when fts_main_<table> lives in the main catalog.
+  await db.open({ path: DB_FILE, accessMode: duckdb.DuckDBAccessMode.READ_ONLY });
   const conn = await db.connect();
   await conn.query("LOAD fts");
   _db = db;
@@ -74,9 +83,8 @@ export async function init() {
   _conn = await bootConnection();
 }
 
-// Tear down the current connection AND its worker so the OPFS file handle is
-// released. Must be awaited before (re)building, since OPFS access is exclusive;
-// the next init() then re-opens the freshly built DB.
+// Tear down the current connection and its worker, so the next init() re-reads
+// the (freshly built) OPFS file. Called before/after regenerating.
 export async function reset() {
   _conn = null;
   _tables = null;
