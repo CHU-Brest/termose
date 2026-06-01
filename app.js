@@ -579,10 +579,11 @@ function logLine(msg) {
   log.scrollTop = log.scrollHeight;
 }
 
+const GEN_LOG_IDLE = "En attente du lancement…";
 function openGenDb() {
   $("#genError").hidden = true;
   resetSteps();
-  $("#genLog").textContent = "";
+  $("#genLog").textContent = GEN_LOG_IDLE;
   $("#genDbStart").disabled = false;
   showGenView(1);
   $("#genDbOverlay").hidden = false;
