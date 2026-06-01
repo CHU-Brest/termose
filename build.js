@@ -11,13 +11,18 @@ import { DB_PATH, clearStoredDb, setStoredVersion } from "./storage.js";
 
 // Stable data.gouv permalinks (the timestamped static.data.gouv.fr URLs rotate on
 // every update; these /datasets/r/<id> permalinks 302-redirect to the latest and
-// carry CORS, including on the redirect). ATC is absent from the dataset, so the
-// license build covers cim10 / ccam / adicap only.
+// carry CORS, including on the redirect).
 // `url` is the data.gouv download permalink; `source`/`sourceUrl`/`license`
 // describe attribution and licensing (shown in the dialog's licence step before
 // the build, and re-read authoritatively from each parquet's KV metadata at
 // build time). Exported so app.js renders the licence view from the same source.
 export const TERMINOLOGIES = [
+  {
+    name: "atc", version: "2026-02",
+    url: "https://www.data.gouv.fr/api/1/datasets/r/f448aade-a175-4217-9665-b0ac4c0d68bd",
+    source: "ATC", sourceUrl: "https://smt.esante.gouv.fr/terminologie-atc/",
+    license: "CC BY-ND 3.0 IGO",
+  },
   {
     name: "cim10", version: "2025-01-01",
     url: "https://www.data.gouv.fr/api/1/datasets/r/f0163d08-c682-4920-9409-363bca1415fe",

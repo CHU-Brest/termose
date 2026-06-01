@@ -1,7 +1,7 @@
 # termose
 
 Static client-side search engine for medical terminologies (**CIM-10**, **CCAM**,
-**ADICAP**). The hierarchy of concepts uses the nested-set model. A prebuilt
+**ADICAP**, **ATC**). The hierarchy of concepts uses the nested-set model. A prebuilt
 DuckDB database is queried entirely in the browser via **DuckDB-WASM**, with
 full-text BM25 search on the `keywords` column. No backend — it deploys as a
 static site on GitHub Pages.
@@ -41,7 +41,7 @@ place, la base est **générée dans le navigateur** :
    « Générer la base » (bouton en haut à droite + boîte de dialogue).
 2. `build.js` télécharge les parquets officiels depuis
    [data.gouv.fr](https://www.data.gouv.fr/datasets/terminologie-medicale-au-format-parquet)
-   (cim10, ccam, adicap — ATC n'y est pas publié), reconstruit la base avec
+   (cim10, ccam, adicap, atc), reconstruit la base avec
    DuckDB-WASM (port de `build_db.py` : `id`, `meta`, patch CCAM, index FTS),
    et la **persiste dans l'OPFS** (`storage.js`).
 3. Les chargements suivants rouvrent la base depuis l'OPFS (aucun
