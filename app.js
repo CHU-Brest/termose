@@ -24,10 +24,14 @@ const state = {
 
 // ----------------------------------------------------------- keyboard shortcuts
 function initShortcuts() {
+  // Hint the Ctrl/⌘+K shortcut in the placeholder, with the platform-correct modifier.
+  const input = $("#search");
+  const isApple = /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent || "");
+  input.placeholder = `${isApple ? "⌘K" : "Ctrl+K"} : ${input.placeholder}`;
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
       e.preventDefault(); // Ctrl/⌘+K → focus the search bar
-      const input = $("#search");
       input.focus();
       input.select();
     }
