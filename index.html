@@ -566,7 +566,11 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .freq-field code { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
 
 .gen-view[hidden] { display: none; }
-.license-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.license-list {
+  list-style: none; margin: 14px 0 0; padding: 0 4px 0 0; /* right padding = room for the scrollbar */
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 300px; overflow-y: auto; /* scroll once more terminologies are added */
+}
 .license-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
 .license-item .lic-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
 .license-item .lic-name { font-weight: 700; font-size: 13px; color: var(--text); }
@@ -747,8 +751,7 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
         <div class="gen-view" id="genView2" hidden>
           <p class="modal-intro">La base est construite à partir des terminologies
             ci-dessous, publiées par l'<a href="https://esante.gouv.fr/" target="_blank" rel="noopener">Agence du Numérique en Santé</a>.
-            Chacune est soumise à sa propre licence — merci d'en prendre connaissance
-            avant de continuer.</p>
+            Chacune est soumise à sa propre licence.</p>
           <ul class="license-list" id="licenseList"></ul>
         </div>
 
