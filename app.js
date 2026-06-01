@@ -74,7 +74,7 @@ function initSplitters() {
 }
 
 // Known licence → deed URL, so the footer links to the right deed whatever the
-// per-terminology licence is (the YAML only needs the licence name).
+// per-terminology licence is (meta only carries the licence name).
 const LICENSE_URLS = {
   "CC BY-NC-ND 3.0 IGO": "https://creativecommons.org/licenses/by-nc-nd/3.0/igo/",
   "CC BY-ND 3.0 IGO": "https://creativecommons.org/licenses/by-nd/3.0/igo/",
@@ -96,7 +96,7 @@ function renderFooterCredit() {
       : esc(t.source)));
   }
   if (t.license) {
-    const licUrl = LICENSE_URLS[t.license] || t.license_url;
+    const licUrl = LICENSE_URLS[t.license];
     parts.push(licUrl
       ? `<a href="${esc(licUrl)}" target="_blank" rel="noopener">${esc(t.license)}</a>`
       : esc(t.license));
