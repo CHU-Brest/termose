@@ -541,27 +541,13 @@ async function selectConcept(id) {
 }
 
 // ============================================== generate-database modal
-// Step status helpers: each <li data-step> gets pending / active / done / error.
-function setStep(step, status) {
-  const li = document.querySelector(`#genSteps .gen-step[data-step="${step}"]`);
-  if (li) li.className = "gen-step" + (status ? " " + status : "");
+// Single status line that advances over time (idle → download → transform → done/error).
+function setStatus(state, text) {
+  $("#genStatus").dataset.state = state;
+  $("#genStatusText").textContent = text;
 }
-function resetSteps() {
-  ["download", "transform", "done"].forEach((s) => setStep(s, ""));
-  $("#gsDownload").textContent = "";
-  $("#gsTransform").textContent = "";
-}
-function setStepError() {
-  // Mark whichever step is currently active as failed.
-  const active = document.querySelector("#genSteps .gen-step.active");
-  if (active) active.classList.replace("active", "error");
-}
-
-const TERM_LABELS = ["cim10", "ccam", "adicap"]; // display order in the download line
-function renderDownloadProgress(pct) {
-  return TERM_LABELS
-    .map((n) => `${n} ${n in pct ? pct[n] + "%" : "—"}`)
-    .join(" · ");
+function resetStatus() {
+  setStatus("idle", "En attente du lancement…");
 }
 
 // Three-step dialog: 1 = options (intro + frequencies), 2 = licences, 3 = progress.
@@ -609,7 +595,7 @@ function logLine(msg) {
 const GEN_LOG_IDLE = "En attente du lancement…";
 function openGenDb() {
   $("#genError").hidden = true;
-  resetSteps();
+  resetStatus();
   $("#genLog").textContent = GEN_LOG_IDLE;
   $("#genDbStart").disabled = false;
   showGenView(1);
@@ -623,30 +609,24 @@ async function runGenDb() {
   const startBtn = $("#genDbStart");
   startBtn.disabled = true;
   $("#genError").hidden = true;
-  resetSteps();
   $("#genLog").textContent = "";
-  setStep("download", "active");
+  setStatus("download", "Téléchargement…");
   logLine("Démarrage de la génération…");
 
-  const pct = {};
   const done = {};
   const onProgress = (p) => {
     if (p.phase === "download") {
-      pct[p.file] = p.total ? Math.round((100 * p.loaded) / p.total) : 0;
-      $("#gsDownload").textContent = renderDownloadProgress(pct);
+      setStatus("download", "Téléchargement…");
       if (p.total && p.loaded >= p.total && !done[p.file]) {
         done[p.file] = true;
         logLine(`✓ ${p.file} téléchargé (${(p.total / 1024 / 1024).toFixed(1)} Mo)`);
       }
     } else if (p.phase === "transform") {
-      setStep("download", "done");
-      setStep("transform", "active");
-      $("#gsTransform").textContent = "construction + index…";
+      setStatus("transform", "Transformation…");
     } else if (p.phase === "log") {
       logLine(p.message);
     } else if (p.phase === "done") {
-      setStep("transform", "done");
-      setStep("done", "done");
+      setStatus("done", "Terminé");
       logLine("✓ Base prête.");
     }
   };
@@ -661,7 +641,7 @@ async function runGenDb() {
     // Leave the dialog open so the log stays readable; the user closes it via "Fermer".
   } catch (e) {
     console.error(e);
-    setStepError();
+    setStatus("error", "Erreur");
     logLine("✗ Erreur : " + e.message);
     $("#genError").textContent = "Erreur : " + e.message;
     $("#genError").hidden = false;

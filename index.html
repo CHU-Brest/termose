@@ -586,17 +586,16 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
   white-space: pre-wrap; word-break: break-word;
 }
 
-.gen-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.gen-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-3); }
-.gen-step .gs-dot { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); transition: all .15s; position: relative; }
-.gen-step .gs-label { font-weight: 600; }
-.gen-step .gs-detail { margin-left: auto; font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
-.gen-step.active { color: var(--text); }
-.gen-step.active .gs-dot { border-color: var(--accent); border-right-color: transparent; animation: gs-spin .7s linear infinite; }
-.gen-step.done { color: var(--text); }
-.gen-step.done .gs-dot { border-color: var(--accent); background: var(--accent); }
-.gen-step.done .gs-dot::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.gen-step.error .gs-dot { border-color: #c0392b; background: #c0392b; }
+/* single status line that changes over time (download → transform → done) */
+.gen-status { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text); }
+.gen-status[data-state="idle"] { color: var(--text-3); }
+.gen-status .gs-spin { flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border-strong); position: relative; transition: all .15s; }
+.gen-status[data-state="download"] .gs-spin,
+.gen-status[data-state="transform"] .gs-spin { border-color: var(--accent); border-right-color: transparent; animation: gs-spin .7s linear infinite; }
+.gen-status[data-state="done"] .gs-spin { border-color: var(--accent); background: var(--accent); }
+.gen-status[data-state="done"] .gs-spin::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.gen-status[data-state="error"] .gs-spin { border-color: #c0392b; background: #c0392b; }
+.gen-status[data-state="error"] { color: #c0392b; }
 @keyframes gs-spin { to { transform: rotate(360deg); } }
 
 .gen-error { font-size: 12.5px; color: #c0392b; background: color-mix(in srgb, #c0392b 8%, transparent); border: 1px solid color-mix(in srgb, #c0392b 30%, transparent); border-radius: 8px; padding: 8px 10px; }
@@ -757,22 +756,10 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
 
         <!-- Vue 3 : progression -->
         <div class="gen-view" id="genView3" hidden>
-          <ul class="gen-steps" id="genSteps">
-            <li class="gen-step" data-step="download">
-              <span class="gs-dot"></span>
-              <span class="gs-label">Téléchargement</span>
-              <span class="gs-detail" id="gsDownload"></span>
-            </li>
-            <li class="gen-step" data-step="transform">
-              <span class="gs-dot"></span>
-              <span class="gs-label">Transformation</span>
-              <span class="gs-detail" id="gsTransform"></span>
-            </li>
-            <li class="gen-step" data-step="done">
-              <span class="gs-dot"></span>
-              <span class="gs-label">Terminé</span>
-            </li>
-          </ul>
+          <div class="gen-status" id="genStatus" data-state="idle">
+            <span class="gs-spin"></span>
+            <span class="gs-text" id="genStatusText">En attente du lancement…</span>
+          </div>
 
           <pre class="gen-log" id="genLog" aria-live="polite"></pre>
 
