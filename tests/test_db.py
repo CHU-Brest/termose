@@ -48,7 +48,7 @@ def test_id_is_unique_primary_key(con, table):
 @pytest.mark.parametrize("table", TABLES)
 def test_roots_exist(con, table):
     rows = con.execute(
-        f"SELECT id, code, label, depth, lft, rgt, path, freq "
+        f"SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel "
         f"FROM {table} WHERE depth = 0 ORDER BY lft"
     ).fetchall()
     assert len(rows) >= 1
@@ -80,14 +80,42 @@ def test_fts_index_present_and_ranks(con, table):
         f") WHERE regexp_matches(word, '^[a-z]{{4,}}$') ORDER BY lft LIMIT 1"
     ).fetchone()[0]
     rows = con.execute(
-        f"SELECT id, code, label, freq, "
+        f"SELECT id, code, label, freq_abs, "
         f"fts_main_{table}.match_bm25(id, ?, conjunctive := 1) AS score "
         f"FROM {table} WHERE score IS NOT NULL "
-        f"ORDER BY score DESC, freq DESC LIMIT 300",
+        f"ORDER BY score DESC, freq_abs DESC LIMIT 300",
         [word],
     ).fetchall()
     assert len(rows) >= 1
     assert rows[0][4] is not None  # has a BM25 score
+
+
+@pytest.mark.parametrize("table", TABLES)
+def test_frequency_columns(con, table):
+    # Derived usage columns. These invariants hold whether or not usage counts were
+    # loaded (with no counts everything is 0). Note freq_rel may exceed 1 in theory
+    # (adicap codes appear under several parents), so we only floor it at 0.
+    bad = con.execute(
+        f"SELECT count(*) FROM {table} "
+        f"WHERE concept_count < 0 OR freq_abs < 0 OR freq_abs > 1 OR freq_rel < 0"
+    ).fetchone()[0]
+    assert bad == 0
+    # Roots have no parent: freq_rel mirrors freq_abs (share of the grand total).
+    root_mismatch = con.execute(
+        f"SELECT count(*) FROM {table} WHERE depth = 0 AND abs(freq_rel - freq_abs) > 1e-9"
+    ).fetchone()[0]
+    assert root_mismatch == 0
+    # Nested-set aggregation: a node's concept_count equals the sum of its
+    # descendant-or-self LEAF counts. The full-tree root subtree is representative.
+    root_lft, root_rgt, root_cc = con.execute(
+        f"SELECT lft, rgt, concept_count FROM {table} WHERE depth = 0 ORDER BY lft LIMIT 1"
+    ).fetchone()
+    leaf_sum = con.execute(
+        f"SELECT COALESCE(SUM(concept_count), 0) FROM {table} "
+        f"WHERE lft >= ? AND rgt <= ? AND (rgt - lft) = 1",
+        [root_lft, root_rgt],
+    ).fetchone()[0]
+    assert root_cc == leaf_sum
 
 
 @pytest.mark.parametrize("table", TABLES)

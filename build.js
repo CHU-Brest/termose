@@ -99,7 +99,8 @@ async function parquetColumns(conn, file) {
 // opts.onProgress({phase}) reports 'download' (per file) → 'transform' → 'done',
 // plus human-readable {phase:'log', message} events for the dialog's log console.
 // opts.freqFile (optional File/ArrayBuffer): a parquet with columns
-// `terminologie; code; freq` whose values populate the `freq` column.
+// `terminologie; code; concept_count` — raw usage counts on the leaf codes, from
+// which the per-node concept_count / freq_abs / freq_rel columns are derived (step 3).
 export async function generateDatabase({ onProgress = () => {}, freqFile } = {}) {
   const log = (message) => onProgress({ phase: "log", message });
 
@@ -141,7 +142,9 @@ export async function generateDatabase({ onProgress = () => {}, freqFile } = {})
       await conn.query(
         `CREATE OR REPLACE TABLE ${t.name} AS ` +
           "SELECT CAST(row_number() OVER () AS BIGINT) AS id, *, " +
-          `CAST(0.0 AS DOUBLE) AS freq FROM read_parquet('${file}')`,
+          "CAST(0 AS BIGINT) AS concept_count, " +
+          "CAST(0.0 AS DOUBLE) AS freq_abs, CAST(0.0 AS DOUBLE) AS freq_rel " +
+          `FROM read_parquet('${file}')`,
       );
       await conn.query(`ALTER TABLE ${t.name} ADD PRIMARY KEY (id)`);
 
@@ -177,23 +180,58 @@ export async function generateDatabase({ onProgress = () => {}, freqFile } = {})
       log(`• ${t.name} : ${Number(cnt).toLocaleString("fr-FR")} concepts, index FTS créé.`);
     }
 
-    // 3. Optional frequencies: a parquet `terminologie; code; freq` fills `freq`.
-    // Rows without a match keep 0.0; matching by code updates every row sharing
-    // that code (consistent with adicap, where code is not unique).
+    // 3. Optional usage counts: a parquet `terminologie; code; concept_count` carries
+    // raw counts on the LEAF codes. From those we derive, per node (no runtime
+    // recursion — the nested set does the aggregation):
+    //   concept_count = sum of the node's subtree leaf counts ([lft, rgt]);
+    //   freq_abs      = concept_count / table grand total (global popularity → ranking);
+    //   freq_rel      = concept_count / parent's concept_count (share within the parent
+    //                   → the display bar). Roots get freq_rel = freq_abs.
+    // Rows without counts stay 0 (bars render empty — graceful degradation).
     if (freqBytes) {
-      log("Application des fréquences personnalisées…");
+      log("Application des comptages d'usage…");
       await db.registerFileBuffer("freq.parquet", freqBytes);
       const cols = await parquetColumns(conn, "freq.parquet");
-      const missing = ["terminologie", "code", "freq"].filter((c) => !cols.includes(c));
+      const missing = ["terminologie", "code", "concept_count"].filter((c) => !cols.includes(c));
       if (missing.length) {
-        throw new Error(`Fichier de fréquences invalide : colonnes manquantes (${missing.join(", ")})`);
+        throw new Error(`Fichier de comptages invalide : colonnes manquantes (${missing.join(", ")})`);
       }
       for (const t of TERMINOLOGIES) {
+        // Step 1 — raw counts onto leaves (leaf = rgt - lft = 1). Dedupe input rows by
+        // code first; adicap codes are not unique, so the count attaches in full to
+        // every leaf sharing the code (the concept genuinely sits under several parents).
         await conn.query(
-          `UPDATE ${t.name} AS x SET freq = f.freq ` +
-            "FROM read_parquet('freq.parquet') f " +
-            `WHERE f.terminologie = '${t.name}' AND f.code = x.code`,
+          `UPDATE ${t.name} AS x SET concept_count = agg.c ` +
+            "FROM (SELECT code, SUM(concept_count) AS c FROM read_parquet('freq.parquet') " +
+            `WHERE terminologie = '${t.name}' GROUP BY code) agg ` +
+            "WHERE agg.code = x.code AND (x.rgt - x.lft) = 1",
         );
+        // Step 2 — aggregate the subtree count onto every node via the nested set
+        // (leaf → ancestor-or-self join + GROUP BY; cardinality ≈ #leaves × depth).
+        await conn.query(
+          `UPDATE ${t.name} AS n SET concept_count = agg.c ` +
+            "FROM (SELECT a.id, SUM(l.concept_count) AS c " +
+            `FROM ${t.name} a JOIN ${t.name} l ` +
+            "ON l.lft >= a.lft AND l.rgt <= a.rgt AND (l.rgt - l.lft) = 1 " +
+            "GROUP BY a.id) agg WHERE agg.id = n.id",
+        );
+        // Step 3 — freq_abs = concept_count / grand total. The total is summed over
+        // DISTINCT codes (from the input), so adicap duplicates don't inflate it.
+        await conn.query(
+          `UPDATE ${t.name} AS x SET freq_abs = x.concept_count / gt.total ` +
+            "FROM (SELECT SUM(c) AS total FROM " +
+            "(SELECT code, SUM(concept_count) AS c FROM read_parquet('freq.parquet') " +
+            `WHERE terminologie = '${t.name}' GROUP BY code)) gt WHERE gt.total > 0`,
+        );
+        // Step 4 — freq_rel = concept_count / parent's concept_count (parent = path minus
+        // its last segment, cf. db.js parents()). Roots have no parent → freq_rel = freq_abs.
+        await conn.query(
+          `UPDATE ${t.name} AS c SET freq_rel = c.concept_count / p.concept_count ` +
+            `FROM ${t.name} p ` +
+            "WHERE p.path = regexp_replace(c.path, '/[^/]*$', '') " +
+            "AND c.depth > 0 AND p.concept_count > 0",
+        );
+        await conn.query(`UPDATE ${t.name} SET freq_rel = freq_abs WHERE depth = 0`);
       }
     }
 

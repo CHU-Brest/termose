@@ -363,14 +363,23 @@ function filteredNode(n) {
 }
 
 // =================================================================== RESULTS
-function fmtFreq(freq) {
-  return { pct: Math.round((Number(freq) || 0) * 100) };
+// A 0..1 ratio (freq_rel / freq_abs) as a clamped 0..100 percentage for a bar width.
+function fmtFreq(ratio) {
+  return { pct: Math.max(0, Math.min(100, Math.round((Number(ratio) || 0) * 100))) };
+}
+
+// Absolute popularity for the concept panel: the raw subtree count + its global share.
+// freq_abs is often < 1 %, so keep extra decimals near zero rather than rounding to 0.
+function fmtAbs(c) {
+  const absPct = (Number(c.freq_abs) || 0) * 100;
+  const pctStr = absPct === 0 ? "0" : absPct < 0.1 ? absPct.toFixed(3) : absPct.toFixed(1);
+  return { count: Number(c.concept_count || 0).toLocaleString("fr-FR"), pctStr };
 }
 
 function resultItem(n) {
   const item = el("div", "result");
   item.dataset.id = n.id; // identity = integer id; code is display-only
-  const { pct } = fmtFreq(n.freq);
+  const { pct } = fmtFreq(n.freq_rel);
   item.innerHTML =
     `<div class="r-top">` +
       `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
@@ -462,7 +471,24 @@ async function selectConcept(id) {
     const anc = await db.ancestors(state.term, c.lft, c.rgt);
     const par = await db.parents(state.term, c.code);
     const kids = await db.children(state.term, c.path, c.depth); // first-level children only
-    const { pct } = fmtFreq(c.freq);
+    const { pct } = fmtFreq(c.freq_rel); // bar = share within the parent node
+    const abs = fmtAbs(c); // absolute popularity: raw count + global share
+
+    // Fréquence section: usage count, share within the parent (featured bar), global
+    // share. Shown only when usage data is loaded (concept_count > 0) — otherwise a
+    // muted note rather than three meaningless zeros (graceful degradation).
+    const freqSection = c.concept_count > 0
+      ? `<div class="section"><div class="section-h">Fréquence</div>
+           <div class="freq-line">
+             <div class="freq-thin" title="Fréquence relative (part du parent)"><i style="width:${pct}%"></i></div>
+             <div class="ns-facts">
+               ${factBlock("relative", pct + " %")}
+               ${factBlock("globale", abs.pctStr + " %")}
+               ${factBlock("utilisations", abs.count)}
+             </div>
+           </div></div>`
+      : `<div class="section"><div class="section-h">Fréquence</div>
+           <div class="freq-empty">Aucune donnée d'usage chargée pour ce concept.</div></div>`;
 
     // Breadcrumb shown in the right column toolbar: clickable ancestors then the
     // current concept as a trailing, non-clickable `current` crumb.
@@ -486,9 +512,14 @@ async function selectConcept(id) {
     const childrenHtml = kids.length
       ? `<div class="section"><div class="section-h">Concepts enfants <span class="cnt">${kids.length}</span></div>
            <div class="rel-list">${kids
-             .map((k) => `<div class="rel" data-id="${esc(k.id)}" title="${esc(k.label)}">
+             .map((k) => {
+               const kp = fmtFreq(k.freq_rel).pct; // share of this child within the current node
+               return `<div class="rel" data-id="${esc(k.id)}" title="${esc(k.label)}">
                <span class="badge ${badgeClass(k)}">${esc(k.code)}</span>
-               <span class="rel-label">${esc(k.label)}</span></div>`)
+               <span class="rel-label">${esc(k.label)}</span>
+               <span class="rel-freq"><span class="freq-bar"><i style="width:${kp}%"></i></span>
+               <span class="freq-val">${kp}%</span></span></div>`;
+             })
              .join("")}</div></div>`
       : "";
 
@@ -504,10 +535,7 @@ async function selectConcept(id) {
         <span class="d-code">${esc(c.code)}</span>
       </div>
       <h2 class="d-label">${esc(c.label)}</h2>
-      <div class="freq-mini">
-        <span class="fm-bar"><i style="width:${pct}%"></i></span>
-        <span class="fm-val">${pct} %</span>
-      </div>
+      ${freqSection}
       <div class="section"><div class="section-h">Position (nested set)</div><div class="ns-facts">
         ${factBlock("depth", c.depth)}${factBlock("lft", c.lft)}${factBlock("rgt", c.rgt)}
       </div></div>

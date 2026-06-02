@@ -329,25 +329,11 @@ html[data-theme="dark"] .cart-actions .cart-clear { color: #f1948a; }
 .freq-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .freq-val { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); min-width: 38px; text-align: right; }
 
-/* detail : frequency block */
-.freq-detail { border: 1px solid var(--border); border-radius: 11px; padding: 13px 14px; background: var(--panel); }
-html[data-theme="dark"] .freq-detail { background: var(--hover); }
-.fd-top { display: flex; align-items: baseline; gap: 9px; }
-.fd-num { font-family: var(--font-mono); font-size: 23px; font-weight: 600; color: var(--text); letter-spacing: -.5px; }
-.fd-unit { font-size: 11.5px; color: var(--text-3); }
-.fd-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; align-self: center; }
-.fd-tag.vf { color: var(--t-category); background: var(--t-category-bg); }
-.fd-tag.f { color: var(--t-block); background: var(--t-block-bg); }
-.fd-tag.p { color: var(--t-subcategory); background: var(--t-subcategory-bg); }
-.fd-tag.r { color: var(--text-2); background: var(--border); }
-.fd-bar { height: 8px; border-radius: 5px; background: var(--border); overflow: hidden; margin-top: 12px; }
-.fd-bar i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
-
-/* detail : discreet frequency line (no card, no tag) */
-.freq-mini { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
-.freq-mini .fm-bar { flex: 1; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
-.freq-mini .fm-bar i { display: block; height: 100%; background: var(--accent); }
-.freq-mini .fm-val { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); min-width: 34px; text-align: right; }
+/* detail : frequency section — a thin relative bar + discreet ns-fact chips */
+.freq-line { display: flex; flex-direction: column; gap: 8px; }
+.freq-thin { height: 4px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.freq-thin i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.freq-empty { font-size: 12.5px; color: var(--text-3); font-style: italic; }
 
 mark { background: var(--mark); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; font-weight: 600; }
 
@@ -484,9 +470,10 @@ html[data-theme="dark"] .note.exc .note-tag { color: #f1948a; }
 html[data-theme="dark"] .rel { background: var(--hover); }
 .rel:hover { border-color: var(--border-strong); }
 .rel.parent { background: transparent; border: 1px dashed var(--border-strong); }
-.rel .rel-label { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel .rel-label { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0; }
 .rel .rel-arrow { margin-left: auto; color: var(--text-3); flex: 0 0 auto; }
 .rel .rel-arrow svg { width: 15px; height: 15px; display: block; }
+.rel .rel-freq { flex: 0 0 auto; margin-left: auto; display: flex; align-items: center; gap: 7px; }
 .rel-empty { font-size: 12.5px; color: var(--text-3); font-style: italic; padding: 2px 0; }
 
 /* nested-set facts — small chips, same scale as the breadcrumb crumbs */
@@ -732,8 +719,8 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
             n'est nécessaire qu'une seule fois.</p>
 
           <div class="freq-field">
-            <span class="ff-label">Fichier de fréquences <em>(optionnel)</em></span>
-            <span class="ff-desc">Vous pouvez enrichir la base avec des fréquences personnalisées pour chaque concept. Ajouter un fichier parquet avec les 3 colonnes : <code>terminologie</code> ; <code>code</code> ; <code>freq</code>.</span>
+            <span class="ff-label">Fichier de comptages d'usage <em>(optionnel)</em></span>
+            <span class="ff-desc">Vous pouvez enrichir la base avec des comptages d'usage par concept. Ajouter un fichier parquet avec les 3 colonnes : <code>terminologie</code> ; <code>code</code> ; <code>concept_count</code> (nombre brut d'occurrences, sur les codes terminaux/feuilles). Les fréquences relatives au parent et globales en sont dérivées automatiquement.</span>
             <div class="file-row">
               <label class="file-pick" for="freqFile">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>

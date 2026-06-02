@@ -110,7 +110,7 @@ function assertTable(table) {
 export async function roots(table) {
   assertTable(table);
   return rows(
-    `SELECT id, code, label, depth, lft, rgt, path, freq
+    `SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel
      FROM ${table} WHERE depth = 0 ORDER BY lft`,
   );
 }
@@ -118,7 +118,7 @@ export async function roots(table) {
 export async function children(table, path, depth) {
   assertTable(table);
   return rows(
-    `SELECT id, code, label, depth, lft, rgt, path, freq
+    `SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel
      FROM ${table} WHERE path LIKE ? AND depth = ? ORDER BY lft`,
     [path + "/%", Number(depth) + 1],
   );
@@ -164,11 +164,11 @@ async function matchedRows(table, query) {
   const pc = prefixConds(query);
   if (!pc) return [];
   const exact = await rows(
-    `SELECT id, code, label, depth, lft, rgt, path, freq,
+    `SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel,
             fts_main_${table}.match_bm25(id, ?, conjunctive := 1) AS score
      FROM ${table}
      WHERE ${pc.clause}
-     ORDER BY score DESC NULLS LAST, freq DESC, length(label), code
+     ORDER BY score DESC NULLS LAST, freq_abs DESC, length(label), code
      LIMIT 300`,
     [query.trim(), ...pc.params],
   );
@@ -188,13 +188,13 @@ async function matchedRows(table, query) {
   const score = words.map((_, i) => `s${i}`).join(" + ");
   const fuzzy = await rows(
     `WITH s AS (
-       SELECT id, code, label, depth, lft, rgt, path, freq, ${sims.join(", ")}
+       SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel, ${sims.join(", ")}
        FROM ${table}
      )
-     SELECT id, code, label, depth, lft, rgt, path, freq, (${score}) AS score
+     SELECT id, code, label, depth, lft, rgt, path, concept_count, freq_abs, freq_rel, (${score}) AS score
      FROM s
      WHERE ${where}
-     ORDER BY score DESC, freq DESC, length(label), code
+     ORDER BY score DESC, freq_abs DESC, length(label), code
      LIMIT 300`,
     words,
   );
@@ -216,7 +216,7 @@ export async function searchBoth(table, query) {
   const params = matched.flatMap((r) => [r.lft, r.rgt]);
   const tree = await rows(
     `WITH m(lft, rgt) AS (VALUES ${pairs})
-     SELECT t.id, t.code, t.label, t.depth, t.lft, t.rgt, t.path, t.freq
+     SELECT t.id, t.code, t.label, t.depth, t.lft, t.rgt, t.path, t.concept_count, t.freq_abs, t.freq_rel
      FROM ${table} t
      WHERE EXISTS (SELECT 1 FROM m WHERE t.lft <= m.lft AND t.rgt >= m.rgt)
      ORDER BY t.lft`,
@@ -262,7 +262,10 @@ export async function parents(table, code) {
 
 // Column names of a terminology table, in declared order (drives the generic
 // Concept attribute list). Excludes the common columns the shared UI renders.
-const COMMON = new Set(["id", "code", "label", "depth", "lft", "rgt", "path", "keywords", "freq"]);
+const COMMON = new Set([
+  "id", "code", "label", "depth", "lft", "rgt", "path", "keywords",
+  "concept_count", "freq_abs", "freq_rel",
+]);
 export async function extraColumns(table) {
   assertTable(table);
   const cols = await rows(
