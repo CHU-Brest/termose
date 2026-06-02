@@ -43,8 +43,14 @@ export const TERMINOLOGIES = [
   },
 ];
 
-// Fingerprint stored alongside the DB so a future data.gouv update can be detected.
-const DB_VERSION = TERMINOLOGIES.map((t) => `${t.name}@${t.version}`).join("|");
+// Bumped when the build schema/logic changes in a way that requires a rebuild
+// (e.g. freq → concept_count + freq_abs/freq_rel). Cosmetic code changes do NOT bump
+// it — the ?v= cache-bust already refreshes the JS/CSS without a rebuild.
+const SCHEMA_VERSION = "2";
+// Fingerprint stored alongside the DB so a stale local DB (data OR schema change) can
+// be detected. Exported so the view layer can compare it to the stored version.
+export const DB_VERSION =
+  `s${SCHEMA_VERSION}|` + TERMINOLOGIES.map((t) => `${t.name}@${t.version}`).join("|");
 
 const NAME_RE = /^[a-z][a-z0-9_]*$/; // guards table-name interpolation (cf. build_db.py)
 

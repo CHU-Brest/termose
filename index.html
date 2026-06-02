@@ -163,6 +163,22 @@ html[data-theme="dark"] .term-switch button[aria-pressed="true"] { background: v
 }
 .gen-db-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .gen-db-btn svg { width: 16px; height: 16px; }
+/* stale local DB (data/schema bumped): soft amber fill + discreet "breathing".
+   Reuses the theme's amber tokens, so light/dark are handled for free. */
+body[data-db-stale="1"] .gen-db-btn {
+  color: var(--t-subcategory);
+  border-color: transparent;
+  background: var(--t-subcategory-bg);
+  animation: gen-stale-breathe 2.4s ease-in-out infinite;
+}
+@keyframes gen-stale-breathe {
+  0%, 100% { background-color: var(--t-subcategory-bg); }
+  /* léger réchauffement du fond, jamais vers transparent (pas de flicker) */
+  50% { background-color: color-mix(in srgb, var(--t-subcategory-bg) 82%, var(--t-subcategory)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-db-stale="1"] .gen-db-btn { animation: none; } /* fond ambre statique */
+}
 
 /* ---- cart ---- */
 .header-actions { display: flex; align-items: center; gap: 8px; } /* keep cart + theme tight together */
@@ -342,14 +358,15 @@ mark { background: var(--mark); color: var(--mark-ink); border-radius: 2px; padd
   font-family: var(--font-mono); font-weight: 600; font-size: 11.5px;
   padding: 1px 6px; border-radius: 5px; white-space: nowrap; flex: 0 0 auto;
   letter-spacing: .2px;
+  /* Distinct colour per depth: OKLCH ramp, hue from --hue (set inline by app.js),
+     L/C fixed for legibility. No two depths share a hue (cf. depthHue, 28° step). */
+  color: oklch(0.52 0.17 var(--hue, 265));
+  background: oklch(0.95 0.045 var(--hue, 265));
 }
-.badge.chapter { color: var(--t-chapter); background: var(--t-chapter-bg); }
-.badge.block { color: var(--t-block); background: var(--t-block-bg); }
-.badge.category { color: var(--t-category); background: var(--t-category-bg); }
-.badge.subcategory { color: var(--t-subcategory); background: var(--t-subcategory-bg); }
-.badge.subchapter { color: var(--t-subchapter); background: var(--t-subchapter-bg); }
-.badge.paragraph { color: var(--t-paragraph); background: var(--t-paragraph-bg); }
-.badge.acte { color: var(--t-acte); background: var(--t-acte-bg); }
+html[data-theme="dark"] .badge {
+  color: oklch(0.80 0.13 var(--hue, 265));
+  background: oklch(0.30 0.06 var(--hue, 265));
+}
 
 .type-pill {
   font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
@@ -595,7 +612,7 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
 .modal-actions .btn { border: 1px solid var(--border); padding: 8px 16px; font-size: 13px; border-radius: 9px; }
 .modal-actions .modal-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .modal-actions .modal-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); color: var(--accent-ink); }
-.modal-actions .modal-primary:disabled { opacity: .55; cursor: default; }
+.modal-actions .btn:disabled { opacity: .5; cursor: default; pointer-events: none; }
 </style>
 </head>
 <body>

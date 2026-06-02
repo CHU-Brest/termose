@@ -269,10 +269,10 @@ function clearDetail() {
 const CHEVRON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
-// Colour the code badge by depth (generic across terminologies). For cim10 this
-// matches its type→colour mapping (chapter@0, block@1, category@2, subcategory@3).
-const BADGE_BY_DEPTH = ["chapter", "block", "category", "subcategory", "paragraph", "acte", "subchapter"];
-const badgeClass = (n) => n.type || BADGE_BY_DEPTH[Math.min(n.depth, BADGE_BY_DEPTH.length - 1)];
+// Colour the code badge by depth (generic across terminologies). A distinct hue per
+// depth (OKLCH ramp, L/C fixed in CSS); 28° step → no repeat up to adicap's max depth
+// (12) and beyond. The badge carries the hue via the `--hue` custom property.
+const depthHue = (depth) => (265 + (Number(depth) || 0) * 28) % 360;
 
 function nodeRow(n) {
   const node = el("div", "node");
@@ -281,7 +281,7 @@ function nodeRow(n) {
   const row = el("div", "node-row" + (n.depth === 0 ? " is-chapter" : ""));
   row.innerHTML =
     `<span class="twisty${isLeaf ? " leaf" : ""}">${CHEVRON}</span>` +
-    `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
+    `<span class="badge" style="--hue:${depthHue(n.depth)}">${esc(n.code)}</span>` +
     `<span class="node-label">${esc(n.label)}</span>`;
   const kids = el("div", "kids");
   node.appendChild(row);
@@ -343,7 +343,7 @@ function filteredNode(n) {
   );
   row.innerHTML =
     `<span class="twisty${hasKids ? " open" : " leaf"}">${CHEVRON}</span>` +
-    `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
+    `<span class="badge" style="--hue:${depthHue(n.depth)}">${esc(n.code)}</span>` +
     `<span class="node-label">${esc(n.label)}</span>`;
   const kids = el("div", "kids" + (hasKids ? " open" : ""));
   node.appendChild(row);
@@ -382,7 +382,7 @@ function resultItem(n) {
   const { pct } = fmtFreq(n.freq_rel);
   item.innerHTML =
     `<div class="r-top">` +
-      `<span class="badge ${badgeClass(n)}">${esc(n.code)}</span>` +
+      `<span class="badge" style="--hue:${depthHue(n.depth)}">${esc(n.code)}</span>` +
       `<span class="r-label">${esc(n.label)}</span>` +
       `<span class="freq"><span class="freq-bar"><i style="width:${pct}%"></i></span>` +
       `<span class="freq-val">${pct}%</span></span>` +
@@ -503,7 +503,7 @@ async function selectConcept(id) {
       ? `<div class="section"><div class="section-h">Concepts parents <span class="cnt">${par.length}</span></div>
            <div class="rel-list">${par
              .map((pp) => `<div class="rel parent" data-id="${esc(pp.id)}" title="${esc(pp.label)}">
-               <span class="badge ${badgeClass(pp)}">${esc(pp.code)}</span>
+               <span class="badge" style="--hue:${depthHue(pp.depth)}">${esc(pp.code)}</span>
                <span class="rel-label">${esc(pp.label)}</span></div>`)
              .join("")}</div></div>`
       : "";
@@ -515,7 +515,7 @@ async function selectConcept(id) {
              .map((k) => {
                const kp = fmtFreq(k.freq_rel).pct; // share of this child within the current node
                return `<div class="rel" data-id="${esc(k.id)}" title="${esc(k.label)}">
-               <span class="badge ${badgeClass(k)}">${esc(k.code)}</span>
+               <span class="badge" style="--hue:${depthHue(k.depth)}">${esc(k.code)}</span>
                <span class="rel-label">${esc(k.label)}</span>
                <span class="rel-freq"><span class="freq-bar"><i style="width:${kp}%"></i></span>
                <span class="freq-val">${kp}%</span></span></div>`;
@@ -626,6 +626,9 @@ function openGenDb() {
   resetStatus();
   $("#genLog").textContent = GEN_LOG_IDLE;
   $("#genDbStart").disabled = false;
+  $("#genDbStart").classList.add("modal-primary"); // restore the primary accent
+  $("#genDbBack").disabled = false;
+  $("#genDbCancel").classList.remove("modal-primary"); // drop the post-build accent
   showGenView(1);
   $("#genDbOverlay").hidden = false;
 }
@@ -635,7 +638,10 @@ function closeGenDb() {
 
 async function runGenDb() {
   const startBtn = $("#genDbStart");
+  const backBtn = $("#genDbBack");
   startBtn.disabled = true;
+  backBtn.disabled = true; // no navigating back mid-build
+  let ok = false;
   $("#genError").hidden = true;
   $("#genLog").textContent = "";
   setStatus("download", "Téléchargement…");
@@ -666,7 +672,17 @@ async function runGenDb() {
     await db.clearStoredDb(); // remove the old file before rebuilding
     await generateDatabase({ onProgress, freqFile });
     await loadDatabase(); // re-open the freshly built DB read-only (app ready behind the modal)
-    // Leave the dialog open so the log stays readable; the user closes it via "Fermer".
+    ok = true;
+    // Build done: the freshly stored fingerprint now matches DB_VERSION, so the header
+    // button is no longer stale — clear the amber immediately (don't wait on the async
+    // checkDbStale fired inside loadDatabase).
+    document.body.dataset.dbStale = "0";
+    // Lock "Retour"/"Générer la base" and make "Fermer" the primary action (the only
+    // thing left to do is close the dialog). Drop "Générer"'s primary accent so it reads
+    // as a plain disabled button (like "Retour"), not a faded green one. Leave the dialog
+    // open so the log stays readable.
+    startBtn.classList.remove("modal-primary");
+    $("#genDbCancel").classList.add("modal-primary");
   } catch (e) {
     console.error(e);
     setStatus("error", "Erreur");
@@ -674,7 +690,8 @@ async function runGenDb() {
     $("#genError").textContent = "Erreur : " + e.message;
     $("#genError").hidden = false;
   } finally {
-    startBtn.disabled = false;
+    // On failure, re-enable so the user can retry; on success, keep them disabled.
+    if (!ok) { startBtn.disabled = false; backBtn.disabled = false; }
   }
 }
 
@@ -714,6 +731,21 @@ function showDbMissing() {
 }
 
 // ====================================================================== BOOT
+// Flag the loaded DB as stale when its stored fingerprint differs from the current
+// DB_VERSION (data OR schema changed since it was built) — drives the alert dot on the
+// generate button. Lazy-import build.js (same ?v= pattern as renderLicenses) so boot
+// stays light; getStoredVersion is re-exported by db.js. Non-blocking / best-effort.
+async function checkDbStale() {
+  try {
+    const { DB_VERSION } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
+    const stale = db.getStoredVersion() !== DB_VERSION;
+    document.body.dataset.dbStale = stale ? "1" : "0";
+    $("#genDbBtn").title = stale
+      ? "Mise à jour disponible — régénérez la base"
+      : "Générer la base de données";
+  } catch { /* non-critical: leave the button as-is */ }
+}
+
 async function loadDatabase() {
   try {
     showBootSpinner();
@@ -727,6 +759,7 @@ async function loadDatabase() {
     clearResults();
     clearDetail();
     await loadTree();
+    checkDbStale(); // fire-and-forget: light up the generate button if the DB is stale
     document.body.dataset.ready = "1"; // signal for headless UI harness
   } catch (e) {
     if (e && e.code === "DB_MISSING") { showDbMissing(); return; }
