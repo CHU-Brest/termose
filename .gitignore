@@ -13,4 +13,5 @@ tools/
 # generated client-side from data.gouv.fr (build.js) and persisted in IndexedDB.
 # Local copies may sit here for dev/tests but must not be committed/served.
 database/*.duckdb
-database/*.parquet
+# Never commit parquet files (source terminologies, usage-count samples, etc.).
+*.parquet
