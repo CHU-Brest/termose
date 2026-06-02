@@ -138,11 +138,14 @@ async function switchTerm(table) {
   await loadTree();
 }
 
-function fatal(msg, detail) {
+function fatal(msg, detail, canRegen) {
   document.querySelector(".main").innerHTML =
     `<div class="empty-state" style="margin:auto;max-width:420px">
        <p><b>${esc(msg)}</b></p><p>${esc(detail || "")}</p>
+       ${canRegen ? `<p>Essayez de régénérer la base.</p>
+       <p><button class="btn" id="fatalRegen" style="border:1px solid var(--border)">Régénérer la base</button></p>` : ""}
      </div>`;
+  if (canRegen) $("#fatalRegen")?.addEventListener("click", openGenDb);
 }
 
 // --------------------------------------------------------- shared empty states
@@ -764,7 +767,7 @@ async function loadDatabase() {
   } catch (e) {
     if (e && e.code === "DB_MISSING") { showDbMissing(); return; }
     console.error(e);
-    fatal("Impossible de charger la base de données.", e.message);
+    fatal("Impossible de charger la base de données.", e.message, true);
   }
 }
 
