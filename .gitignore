@@ -15,3 +15,6 @@ tools/
 database/*.duckdb
 # Never commit parquet files (source terminologies, usage-count samples, etc.).
 *.parquet
+
+# Design mock-ups / prototypes — kept locally, not part of the shipped app.
+design/
