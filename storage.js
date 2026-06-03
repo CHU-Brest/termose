@@ -23,6 +23,64 @@ export async function dbExists() {
   return false;
 }
 
+// Cheap existence probe for a pre-built base at `url`: a HEAD request, falling back
+// to a 1-byte ranged GET for servers that reject HEAD. Returns true only on a clearly
+// OK response — drives whether the dialog offers the "use an available base" option.
+export async function dbUrlExists(url) {
+  try {
+    const head = await fetch(url, { method: "HEAD" });
+    if (head.ok) return true;
+    if (head.status !== 405 && head.status !== 501) return false; // real 404/403/…
+  } catch {
+    /* HEAD unsupported or network hiccup → try a tiny GET below */
+  }
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-0" } });
+    return res.ok; // 200 (no range support) or 206 (partial)
+  } catch {
+    return false;
+  }
+}
+
+// Download a pre-built database from `url` and install it into OPFS, so a
+// deployment (e.g. a local GitLab) can ship `termose.duckdb` instead of having
+// every client rebuild it from the parquets. Streams progress via
+// onProgress({phase:"download", file, loaded, total}) — same shape as build.js's
+// downloadParquet, so the dialog's existing handler renders it unchanged.
+// The bytes are a complete (checkpointed) DuckDB file; db.js reopens it read-only.
+export async function installDbFromUrl(url, onProgress = () => {}) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Téléchargement de la base échoué (HTTP ${res.status})`);
+  const total = Number(res.headers.get("Content-Length")) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    onProgress({ phase: "download", file: "base", loaded, total });
+  }
+  const bytes = new Uint8Array(loaded);
+  let off = 0;
+  for (const c of chunks) {
+    bytes.set(c, off);
+    off += c.length;
+  }
+
+  // Replace any existing file (and stale WAL) then write the downloaded bytes.
+  await clearStoredDb();
+  const root = await navigator.storage.getDirectory();
+  const handle = await root.getFileHandle(DB_FILE, { create: true });
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(bytes);
+  } finally {
+    await writable.close();
+  }
+}
+
 // Remove the generated database (and its WAL) — used before a regeneration.
 export async function clearStoredDb() {
   try {

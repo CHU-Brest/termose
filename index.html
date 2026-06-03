@@ -569,6 +569,17 @@ html[data-theme="dark"] .ns-fact { background: var(--hover); }
 .freq-field small { font-size: 11.5px; color: var(--text-3); }
 .freq-field code { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
 
+/* source chooser (view 0): download a pre-built base vs build it locally */
+.mode-opt { display: flex; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); cursor: pointer; transition: border-color .12s; }
+.mode-opt input[type="radio"] { margin: 2px 0 0; accent-color: var(--accent); flex: 0 0 auto; cursor: pointer; }
+.mode-opt:has(input:checked) { border-color: var(--accent); }
+.mode-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.mode-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.mode-desc { font-size: 12px; line-height: 1.5; color: var(--text-2); }
+.mode-url { margin-top: 6px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; }
+.mode-url:disabled { opacity: .5; }
+.mode-url:focus { outline: none; border-color: var(--accent); }
+
 .gen-view[hidden] { display: none; }
 .license-list {
   list-style: none; margin: 14px 0 0; padding: 0 4px 0 0; /* right padding = room for the scrollbar */
@@ -729,8 +740,28 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
         </button>
       </div>
       <div class="modal-body">
+        <!-- Vue 0 : choix de la source de la base -->
+        <div class="gen-view" id="genView0">
+          <p class="modal-intro">Choisissez comment obtenir la base de données.</p>
+          <label class="mode-opt">
+            <input type="radio" name="genMode" value="remote" checked />
+            <span class="mode-body">
+              <span class="mode-title">Utiliser une base disponible</span>
+              <span class="mode-desc">Télécharger une base déjà construite depuis une URL (rapide).</span>
+              <input type="text" class="mode-url" id="dbUrl" placeholder="https://…/termose.duckdb" />
+            </span>
+          </label>
+          <label class="mode-opt">
+            <input type="radio" name="genMode" value="build" />
+            <span class="mode-body">
+              <span class="mode-title">Générer la base</span>
+              <span class="mode-desc">Télécharger les terminologies et construire la base dans votre navigateur. Plus long, nécessaire une seule fois.</span>
+            </span>
+          </label>
+        </div>
+
         <!-- Vue 1 : options -->
-        <div class="gen-view" id="genView1">
+        <div class="gen-view" id="genView1" hidden>
           <p class="modal-intro">Pour des raisons de licence, les terminologies sont téléchargées
             et la base est construite et stockée dans votre navigateur. L'opération
             n'est nécessaire qu'une seule fois.</p>

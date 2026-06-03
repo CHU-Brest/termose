@@ -3,6 +3,7 @@
 // as a matched, fresh pair (prevents stale-cache mix breaking boot after updates).
 const _v = new URL(import.meta.url).searchParams.get("v");
 const db = await import("./db.js" + (_v ? `?v=${_v}` : ""));
+const { DEFAULT_DB_URL } = await import("./config.js" + (_v ? `?v=${_v}` : ""));
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, html) => {
@@ -581,17 +582,31 @@ function resetStatus() {
   setStatus("idle", "En attente du lancement…");
 }
 
-// Three-step dialog: 1 = options (intro + frequencies), 2 = licences, 3 = progress.
-let _genView = 1;
+// Dialog views: 0 = source chooser (download a pre-built base vs build it),
+// 1 = build options (intro + frequencies, build only), 2 = licences, 3 = progress.
+// `_genMode` ("remote" | "build") is set from the chooser and drives the branching.
+let _genView = 0;
+let _genMode = "remote";
 function showGenView(n) {
   _genView = n;
+  $("#genView0").hidden = n !== 0;
   $("#genView1").hidden = n !== 1;
   $("#genView2").hidden = n !== 2;
   $("#genView3").hidden = n !== 3;
-  $("#genDbNext").hidden = n !== 1;
+  // "Suivant" appears on the chooser (0) and the build-only options view (1).
+  $("#genDbNext").hidden = !(n === 0 || n === 1);
   $("#genDbAccept").hidden = n !== 2;
   $("#genDbStart").hidden = n !== 3;
-  $("#genDbBack").hidden = n === 1;
+  $("#genDbBack").hidden = n === 0;
+}
+
+// Reflect the chosen source: update `_genMode`, enable the URL field only for the
+// remote option, and relabel the progress-view action accordingly.
+function syncModeUi() {
+  const checked = document.querySelector('input[name="genMode"]:checked');
+  _genMode = checked ? checked.value : "remote";
+  $("#dbUrl").disabled = _genMode !== "remote";
+  $("#genDbStart").textContent = _genMode === "remote" ? "Télécharger la base" : "Générer la base";
 }
 
 // Render the licence view from build.js's TERMINOLOGIES (single source of truth);
@@ -632,7 +647,13 @@ function openGenDb() {
   $("#genDbStart").classList.add("modal-primary"); // restore the primary accent
   $("#genDbBack").disabled = false;
   $("#genDbCancel").classList.remove("modal-primary"); // drop the post-build accent
-  showGenView(1);
+  // Reset the chooser to the default each open: download a pre-built base, URL
+  // prefilled from config (kept if the user already edited it this session).
+  const remoteRadio = document.querySelector('input[name="genMode"][value="remote"]');
+  if (remoteRadio) remoteRadio.checked = true;
+  if (!$("#dbUrl").value) $("#dbUrl").value = DEFAULT_DB_URL;
+  syncModeUi();
+  showGenView(0);
   $("#genDbOverlay").hidden = false;
 }
 function closeGenDb() {
@@ -669,12 +690,25 @@ async function runGenDb() {
   };
 
   try {
-    const { generateDatabase } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
-    const freqFile = $("#freqFile").files[0] || undefined;
-    await db.reset(); // release any read-only OPFS handle (regeneration) — exclusive access
-    await db.clearStoredDb(); // remove the old file before rebuilding
-    await generateDatabase({ onProgress, freqFile });
-    await loadDatabase(); // re-open the freshly built DB read-only (app ready behind the modal)
+    await db.reset(); // release any read-only OPFS handle — exclusive access for the write
+    if (_genMode === "remote") {
+      // Download a pre-built base from the URL and install it into OPFS.
+      const url = $("#dbUrl").value.trim();
+      if (!url) throw new Error("Veuillez indiquer l'URL de la base.");
+      await db.installDbFromUrl(url, onProgress); // clears the old file internally
+      // The distributed base ships with the deployed app version: stamp it so the
+      // "base obsolète" alert doesn't fire (set before reopening so checkDbStale sees it).
+      const { DB_VERSION } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
+      db.setStoredVersion(DB_VERSION);
+      onProgress({ phase: "done" }); // installDbFromUrl only streams 'download'
+    } else {
+      // Build the base locally from the data.gouv parquets (original behaviour).
+      const { generateDatabase } = await import("./build.js" + (_v ? `?v=${_v}` : ""));
+      const freqFile = $("#freqFile").files[0] || undefined;
+      await db.clearStoredDb(); // remove the old file before rebuilding
+      await generateDatabase({ onProgress, freqFile });
+    }
+    await loadDatabase(); // re-open the freshly installed/built DB read-only (app ready behind the modal)
     ok = true;
     // Build done: the freshly stored fingerprint now matches DB_VERSION, so the header
     // button is no longer stale — clear the amber immediately (don't wait on the async
@@ -705,11 +739,25 @@ function initGenDb() {
   $("#genDbCancel").addEventListener("click", closeGenDb);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeGenDb(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !overlay.hidden) closeGenDb(); });
-  $("#genDbNext").addEventListener("click", async () => { await renderLicenses(); showGenView(2); });
+  $("#genDbNext").addEventListener("click", async () => {
+    if (_genView === 0) {
+      // Chooser → build goes through the freq options; remote skips straight to licences.
+      if (_genMode === "build") { showGenView(1); return; }
+    }
+    await renderLicenses();
+    showGenView(2);
+  });
   $("#genDbAccept").addEventListener("click", () => showGenView(3));
-  $("#genDbBack").addEventListener("click", () => showGenView(_genView - 1));
+  $("#genDbBack").addEventListener("click", () => {
+    if (_genView === 3) { showGenView(2); return; }
+    // From licences: back to the build options (build) or the chooser (remote).
+    if (_genView === 2) { showGenView(_genMode === "build" ? 1 : 0); return; }
+    showGenView(0); // from the build options view
+  });
   $("#genDbStart").addEventListener("click", runGenDb);
   $("#freqFile").addEventListener("change", updateFreqName);
+  document.querySelectorAll('input[name="genMode"]').forEach((r) =>
+    r.addEventListener("change", syncModeUi));
 }
 
 // Reflect the chosen frequencies file next to the custom "Choisir un fichier" button.

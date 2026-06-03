@@ -1,11 +1,14 @@
 // db.js — DuckDB-WASM data layer. DOM-free. Only file that contains SQL.
 import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";
-import { DB_FILE, dbExists, clearStoredDb, getStoredVersion } from "./storage.js";
+import {
+  DB_FILE, dbExists, clearStoredDb, getStoredVersion, setStoredVersion, installDbFromUrl,
+} from "./storage.js";
 
 // On the `license` branch the DB is not shipped: it is built in the browser
 // (build.js) and persisted in OPFS (storage.js). Re-exported so the view layer
-// can offer a "regenerate" action without importing storage.js directly.
-export { clearStoredDb, getStoredVersion };
+// can offer "regenerate" / "download a pre-built base" actions without importing
+// storage.js directly.
+export { clearStoredDb, getStoredVersion, setStoredVersion, installDbFromUrl };
 
 let _conn = null; // DuckDB-WASM connection, set by init()
 let _db = null; // owning AsyncDuckDB (kept so reset() can release the OPFS handle)

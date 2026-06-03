@@ -10,9 +10,12 @@ package-lock.json
 tools/
 
 # Licence branch: the DB and source parquets are NOT redistributed. The DB is
-# generated client-side from data.gouv.fr (build.js) and persisted in IndexedDB.
-# Local copies may sit here for dev/tests but must not be committed/served.
-database/*.duckdb
+# generated client-side from data.gouv.fr (build.js) and persisted in OPFS, or
+# downloaded from a deployment URL (config.js). A pre-built termose.duckdb may sit
+# at the repo root (next to index.html) or under database/ for dev/tests — never
+# commit or push it. Same for its write-ahead log.
+*.duckdb
+*.duckdb.wal
 # Never commit parquet files (source terminologies, usage-count samples, etc.).
 *.parquet
 
