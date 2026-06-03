@@ -744,18 +744,18 @@ html[data-theme="dark"] .gen-error { color: #f1948a; }
         <div class="gen-view" id="genView0">
           <p class="modal-intro">Choisissez comment obtenir la base de données.</p>
           <label class="mode-opt">
-            <input type="radio" name="genMode" value="remote" checked />
+            <input type="radio" name="genMode" value="build" checked />
+            <span class="mode-body">
+              <span class="mode-title">Générer la base</span>
+              <span class="mode-desc">Télécharger les terminologies et construire la base dans votre navigateur. Plus long, nécessaire une seule fois.</span>
+            </span>
+          </label>
+          <label class="mode-opt">
+            <input type="radio" name="genMode" value="remote" />
             <span class="mode-body">
               <span class="mode-title">Utiliser une base disponible</span>
               <span class="mode-desc">Télécharger une base déjà construite depuis une URL (rapide).</span>
               <input type="text" class="mode-url" id="dbUrl" placeholder="https://…/termose.duckdb" />
-            </span>
-          </label>
-          <label class="mode-opt">
-            <input type="radio" name="genMode" value="build" />
-            <span class="mode-body">
-              <span class="mode-title">Générer la base</span>
-              <span class="mode-desc">Télécharger les terminologies et construire la base dans votre navigateur. Plus long, nécessaire une seule fois.</span>
             </span>
           </label>
         </div>

@@ -586,7 +586,7 @@ function resetStatus() {
 // 1 = build options (intro + frequencies, build only), 2 = licences, 3 = progress.
 // `_genMode` ("remote" | "build") is set from the chooser and drives the branching.
 let _genView = 0;
-let _genMode = "remote";
+let _genMode = "build";
 function showGenView(n) {
   _genView = n;
   $("#genView0").hidden = n !== 0;
@@ -604,7 +604,7 @@ function showGenView(n) {
 // remote option, and relabel the progress-view action accordingly.
 function syncModeUi() {
   const checked = document.querySelector('input[name="genMode"]:checked');
-  _genMode = checked ? checked.value : "remote";
+  _genMode = checked ? checked.value : "build";
   $("#dbUrl").disabled = _genMode !== "remote";
   $("#genDbStart").textContent = _genMode === "remote" ? "Télécharger la base" : "Générer la base";
 }
@@ -647,11 +647,14 @@ function openGenDb() {
   $("#genDbStart").classList.add("modal-primary"); // restore the primary accent
   $("#genDbBack").disabled = false;
   $("#genDbCancel").classList.remove("modal-primary"); // drop the post-build accent
-  // Reset the chooser to the default each open: download a pre-built base, URL
-  // prefilled from config (kept if the user already edited it this session).
-  const remoteRadio = document.querySelector('input[name="genMode"][value="remote"]');
-  if (remoteRadio) remoteRadio.checked = true;
-  if (!$("#dbUrl").value) $("#dbUrl").value = DEFAULT_DB_URL;
+  // Reset the chooser to the default each open: build the base locally. The URL
+  // field is still prefilled for the remote option (kept if the user already
+  // edited it this session). DEFAULT_DB_URL is resolved against the current page
+  // so the field shows a complete URL — http://localhost:8000/termose.duckdb in
+  // dev, https://{domain}/{base}/termose.duckdb once deployed.
+  const buildRadio = document.querySelector('input[name="genMode"][value="build"]');
+  if (buildRadio) buildRadio.checked = true;
+  if (!$("#dbUrl").value) $("#dbUrl").value = new URL(DEFAULT_DB_URL, location.href).href;
   syncModeUi();
   showGenView(0);
   $("#genDbOverlay").hidden = false;
